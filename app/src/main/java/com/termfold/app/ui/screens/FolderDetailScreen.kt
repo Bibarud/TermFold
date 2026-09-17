@@ -1,0 +1,319 @@
+package com.termfold.app.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.termfold.app.R
+import com.termfold.app.core.Folder
+import com.termfold.app.ui.components.BareIconButton
+import com.termfold.app.ui.components.BottomNavSpacer
+import com.termfold.app.ui.components.CircleIconButton
+import com.termfold.app.ui.components.LeadingTile
+import com.termfold.app.ui.components.ListRow
+import com.termfold.app.ui.components.RowSpacer
+import com.termfold.app.ui.components.StatusDot
+import com.termfold.app.ui.theme.Palette
+import com.termfold.app.ui.theme.TermFoldIcons
+import com.termfold.app.ui.theme.folderTint
+
+/** Screen 2: sessions inside one folder. */
+@Composable
+fun FolderDetailScreen(
+    folder: Folder,
+    onBack: () -> Unit,
+    onOpenSession: (String) -> Unit,
+    onAddSession: () -> Unit,
+    onRenameFolder: () -> Unit,
+    onOpenOptions: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+    wide: Boolean = false,
+) {
+    val edge = if (wide) 30.dp else 22.dp
+
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            BareIconButton(
+                icon = TermFoldIcons.Back,
+                contentDescription = stringResource(R.string.cd_back),
+                onClick = onBack,
+            )
+            Spacer(Modifier.weight(1f))
+            BareIconButton(
+                icon = TermFoldIcons.More,
+                contentDescription = stringResource(R.string.cd_more),
+                onClick = { onOpenOptions(null) },
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = edge, end = if (wide) 26.dp else 16.dp, top = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = TermFoldIcons.Folder,
+                    contentDescription = null,
+                    tint = folderTint(folder.tint),
+                    modifier = Modifier.size(32.dp),
+                )
+            }
+
+            Spacer(Modifier.size(14.dp))
+
+            Text(
+                text = folder.name,
+                style = MaterialTheme.typography.titleLarge,
+                color = Palette.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(onClick = onRenameFolder),
+            )
+
+            CircleIconButton(
+                icon = TermFoldIcons.Plus,
+                contentDescription = stringResource(R.string.cd_add_session),
+                onClick = onAddSession,
+                primary = true,
+                size = 46,
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        if (folder.path.isBlank()) {
+            UnmappedPathNotice(
+                modifier = Modifier.padding(
+                    start = edge,
+                    end = if (wide) 26.dp else 16.dp,
+                )
+            )
+            Spacer(Modifier.height(14.dp))
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = if (wide) 30.dp else 16.dp,
+                end = if (wide) 26.dp else 16.dp,
+            ),
+        ) {
+            items(folder.sessions, key = { it.id }) { session ->
+                ListRow(
+                    title = session.name,
+                    leading = { SessionMarkCompact() },
+                    trailing = {
+                        BareIconButton(
+                            icon = TermFoldIcons.More,
+                            contentDescription = stringResource(R.string.cd_more),
+                            onClick = { onOpenOptions(session.id) },
+                            size = 34,
+                            tint = Palette.TextFaint,
+                        )
+                    },
+                    highlighted = session.tint == 0,
+                    onClick = { onOpenSession(session.id) },
+                )
+                RowSpacer()
+            }
+            item { BottomNavSpacer() }
+        }
+    }
+}
+
+/** Session rows use the terminal mark without the folder tint. */
+@Composable
+private fun SessionMarkCompact() {
+    Box(
+        modifier = Modifier.size(46.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = TermFoldIcons.Terminal,
+            contentDescription = null,
+            tint = Palette.Text,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+/**
+ * Shown when the picked provider cannot be mapped onto a real filesystem path — cloud and
+ * virtual providers have no directory Termux could `cd` into, so the user needs to know before
+ * a session silently starts somewhere unexpected.
+ */
+@Composable
+private fun UnmappedPathNotice(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Palette.Card)
+            .padding(18.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StatusDot(Palette.Yellow)
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = stringResource(R.string.unmapped_path_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = Palette.Text,
+            )
+        }
+        Spacer(Modifier.size(10.dp))
+        Text(
+            text = stringResource(R.string.unmapped_path_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Palette.TextDim,
+        )
+    }
+}
+
+/** Small menu shown as a sheet of rows for folder and session actions. */
+@Composable
+fun OptionsSheet(
+    title: String,
+    actions: List<Pair<String, () -> Unit>>,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Card,
+        titleContentColor = Palette.Text,
+        title = {
+            Text(text = title, style = MaterialTheme.typography.titleMedium)
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                actions.forEach { (label, action) ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                onDismiss()
+                                action()
+                            }
+                            .padding(horizontal = 4.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Palette.Text,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+/** Confirmation dialog for destructive actions. */
+@Composable
+fun ConfirmDialog(
+    title: String,
+    body: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Card,
+        titleContentColor = Palette.Text,
+        textContentColor = Palette.TextDim,
+        title = { Text(text = title, style = MaterialTheme.typography.titleMedium) },
+        text = { Text(text = body, style = MaterialTheme.typography.bodyMedium) },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    onDismiss()
+                    onConfirm()
+                }
+            ) {
+                Text(
+                    text = confirmLabel,
+                    color = Palette.Accent,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(
+                    text = stringResource(R.string.action_cancel),
+                    color = Palette.TextDim,
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        },
+    )
+}
+
+
+/** Small horizontal list of actions shown inside the setup card. */
+@Composable
+fun ActionRow(items: List<Pair<String, () -> Unit>>) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        items.forEach { (label, action) ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Palette.Field)
+                    .clickable(onClick = action),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Text,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}

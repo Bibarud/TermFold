@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TermFold</string>
+
+    <string name="folders_title">Folders</string>
+    <string name="settings_title">Settings</string>
+    <string name="new_session_title">New session</string>
+
+    <string name="action_open_terminal">Open terminal</string>
+    <string name="action_run">Run</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_add">Add</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_copied">Copied</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_install">Install</string>
+    <string name="action_restart">Restart</string>
+    <string name="action_reset">Reset</string>
+    <string name="action_repair">Repair</string>
+
+    <string name="empty_folders">No folders yet.</string>
+    <string name="empty_folders_hint">Use + to pick a folder.</string>
+    <string name="empty_sessions">No sessions yet.</string>
+    <string name="empty_sessions_hint">Use + to add one.</string>
+    <string name="terminal_placeholder">Type a command…</string>
+    <string name="terminal_empty">Run a command to see output here.</string>
+    <string name="terminal_exited">Shell exited</string>
+
+    <string name="cd_name">Name</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_search">Search</string>
+    <string name="cd_more">More options</string>
+    <string name="cd_add_folder">Add folder</string>
+    <string name="cd_add_session">Add session</string>
+    <string name="cd_send">Send</string>
+    <string name="cd_expand">Open terminal</string>
+    <string name="cd_home">Folders</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_session">Sessions</string>
+    <string name="cd_clear">Clear</string>
+
+    <string name="status_ready">Ready</string>
+    <string name="status_running">Running…</string>
+    <string name="status_failed">Failed</string>
+
+    <!-- First-run setup of the bundled Linux environment. -->
+    <string name="provision_title">Setting up Linux</string>
+    <string name="provision_body">Unpacking %1$s into this app. This happens once — everything you install with apt afterwards is kept.</string>
+    <string name="provision_failed">Setup failed</string>
+
+    <!-- Extra keys for the on-screen terminal keyboard. -->
+    <string name="key_ctrl">Ctrl</string>
+    <string name="key_alt">Alt</string>
+    <string name="key_esc">Esc</string>
+    <string name="key_tab">Tab</string>
+    <string name="key_ctrl_c">^C</string>
+    <string name="key_ctrl_d">^D</string>
+    <string name="key_enter">Enter</string>
+    <string name="key_paste">Paste</string>
+    <string name="key_home">Home</string>
+    <string name="key_end">End</string>
+    <string name="key_pgup">PgUp</string>
+    <string name="key_pgdn">PgDn</string>
+    <string name="key_pipe">|</string>
+    <string name="key_slash">/</string>
+    <string name="key_dash">-</string>
+
+    <!-- Bundled Linux environment, shown in settings. -->
+    <string name="shell_title">Linux environment</string>
+    <string name="shell_ready">Ready</string>
+    <string name="shell_not_ready">Not set up yet</string>
+    <string name="shell_arch_label">Architecture</string>
+    <string name="shell_size_label">Size on disk</string>
+    <string name="shell_body">A full Ubuntu environment runs inside this app. The terminal, apt and the agents you launch all share one persistent system — nothing else needs to be installed.</string>
+    <string name="shell_unsupported">The bundled Linux image does not match this device\'s CPU architecture. Sessions cannot start here.</string>
+
+    <string name="sessions_header">Sessions</string>
+    <string name="session_preset_shell">Shell</string>
+    <string name="session_preset_opencode">OpenCode</string>
+    <string name="session_preset_pi">Pi</string>
+    <string name="session_preset_claude">Claude Code</string>
+    <string name="session_preset_custom">Custom</string>
+    <string name="custom_command">Command</string>
+
+    <string name="unmapped_path_title">This folder has no system path</string>
+    <string name="unmapped_path_body">The terminal can only open folders backed by real storage. Remove this folder and pick one from device storage instead.</string>
+
+    <string name="about_title">About</string>
+    <string name="about_body">TermFold runs a real Linux environment inside the app and opens it in the folders you pick, so agents and shell tools start in the right project.</string>
+    <string name="version_label">Version</string>
+</resources>
