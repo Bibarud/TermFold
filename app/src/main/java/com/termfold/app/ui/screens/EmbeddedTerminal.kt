@@ -5,12 +5,15 @@ import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.termux.view.TerminalView
@@ -50,18 +53,27 @@ fun EmbeddedTerminal(
         AndroidView(
             modifier = modifier
                 .fillMaxSize()
-                .background(Palette.TermBg),
+                // The gutter is drawn in the same background colour, so the shell content sits
+                // with comfortable side padding instead of touching the screen edges.
+                .background(Palette.TermBg)
+                .padding(horizontal = 12.dp),
             factory = { context ->
                 TerminalView(context, null).apply {
                     setBackgroundColor(ShellTheme.windowBackground)
 
-                    // The bundled JetBrains Mono has box-drawing and Powerline glyphs, which TUIs
-                    // and shell prompts use; the platform monospace font does not.
-                    runCatching {
-                        setTypeface(Typeface.createFromAsset(context.assets, "jetbrains_mono.ttf"))
-                    }
-
+                    // JetBrains Mono has the box-drawing glyphs TUIs draw their frames with, and
+                    // reads far better than the platform monospace. It ships as a font resource
+                    // (res/font), not an asset; loading it from assets failed silently and left
+                    // the terminal on the system font.
+                    //
+                    // The size must be set first: setTextSize is what creates the view's text
+                    // renderer, and setTypeface reads the size back from it (it throws a
+                    // NullPointerException otherwise).
                     setTextSize(fontSizeSp)
+                    val mono = runCatching {
+                        context.resources.getFont(com.termfold.app.R.font.jetbrains_mono)
+                    }.getOrNull() ?: Typeface.MONOSPACE
+                    setTypeface(mono)
                     isFocusable = true
                     isFocusableInTouchMode = true
 

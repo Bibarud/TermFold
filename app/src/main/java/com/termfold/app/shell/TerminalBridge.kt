@@ -43,6 +43,25 @@ class TerminalBridge(
     private var controlKey = false
     private var altKey = false
 
+    /**
+     * Activity tracking for the "working" spinner in the session list. Output counts as work
+     * only when it is not the echo of something just typed: a CLI that is busy keeps drawing on
+     * its own, while one waiting at a prompt only redraws in answer to keystrokes.
+     */
+    @Volatile
+    private var lastInputAt = 0L
+
+    @Volatile
+    private var lastWorkAt = 0L
+
+    /** True while the session has been producing output of its own in the last moment. */
+    val isWorking: Boolean
+        get() = System.currentTimeMillis() - lastWorkAt < WORK_WINDOW_MS
+
+    private fun markInput() {
+        lastInputAt = System.currentTimeMillis()
+    }
+
     fun setControlKey(down: Boolean) {
         controlKey = down
     }
@@ -81,12 +100,15 @@ class TerminalBridge(
     fun sendSequence(sequence: String) = writeToTerminal(sequence)
 
     private fun writeToTerminal(text: String) {
+        markInput()
         host.terminalSession()?.write(text)
     }
 
     // --- TerminalSessionClient ------------------------------------------------------------------
 
     override fun onTextChanged(session: TerminalSession) {
+        val now = System.currentTimeMillis()
+        if (now - lastInputAt > ECHO_WINDOW_MS) lastWorkAt = now
         main.post { host.onScreenUpdated() }
     }
 
@@ -167,11 +189,19 @@ class TerminalBridge(
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent, session: TerminalSession): Boolean {
+        markInput()
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             // Back first gives the UI a chance to handle it (closing the keyboard, then leaving
             // the screen); only if the UI declines does it fall through to Escape above.
             main.post { host.onBackPressed() }
             return false
+        }
+        // Ctrl+V (and Ctrl+Shift+V) paste from Android's clipboard. The agents' own Ctrl+V reads
+        // an X11/Wayland clipboard the guest does not have ("Failed to paste image: clipboard
+        // unavailable" in Codex), so an image becomes a saved file whose path is pasted instead,
+        // which Codex and Claude Code both attach. An empty clipboard lets ^V through as usual.
+        if (keyCode == KeyEvent.KEYCODE_V && event.isCtrlPressed && !event.isAltPressed) {
+            return TerminalHost.paste(context)
         }
         return false
     }
@@ -194,7 +224,13 @@ class TerminalBridge(
         controlDown: Boolean,
         session: TerminalSession,
     ): Boolean {
+        markInput()
         if (!controlDown) return false
+        // The on-screen Ctrl key plus v: the same clipboard paste as a hardware Ctrl+V.
+        if ((codePoint == 'v'.code || codePoint == 'V'.code) && TerminalHost.paste(context)) {
+            main.post { host.onScreenUpdated() }
+            return true
+        }
         val mapped = when (codePoint) {
             in 'a'.code..'z'.code -> codePoint - 'a'.code + 1
             in 'A'.code..'Z'.code -> codePoint - 'A'.code + 1
@@ -252,6 +288,12 @@ class TerminalBridge(
     }
 
     private companion object {
+        /** Output this soon after a keystroke is treated as its echo, not as work. */
+        private const val ECHO_WINDOW_MS = 500L
+
+        /** How long after its last output a session still counts as working. */
+        private const val WORK_WINDOW_MS = 2_000L
+
         /** `TerminalEmulator.TERMINAL_CURSOR_STYLE_BLOCK`, inlined to avoid the emulator import. */
         const val TERMINAL_CURSOR_STYLE_BLOCK = 1
 

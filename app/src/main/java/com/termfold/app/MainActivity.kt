@@ -20,6 +20,18 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +70,7 @@ import com.termfold.app.ui.components.currentWindowWidth
 import com.termfold.app.ui.components.isWide
 import com.termfold.app.ui.components.GlowScaffold
 import com.termfold.app.ui.components.NavTab
+import com.termfold.app.ui.screens.AgentSessionScreen
 import com.termfold.app.ui.screens.ConfirmDialog
 import com.termfold.app.ui.screens.FolderDetailScreen
 import com.termfold.app.ui.screens.FoldersScreen
@@ -84,6 +97,27 @@ class MainActivity : ComponentActivity() {
                 TermFoldRoot(viewModel)
             }
         }
+    }
+
+    /**
+     * The first key typed on a physical keyboard puts the on-screen one away: it is covering the
+     * terminal and nobody is using it. It comes back as soon as the user taps a text field or the
+     * terminal, which is them choosing touch again (see [PhysicalKeyboard]).
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val wasInUse = com.termfold.app.ui.components.PhysicalKeyboard.inUse
+        if (event.action == android.view.KeyEvent.ACTION_DOWN &&
+            com.termfold.app.ui.components.PhysicalKeyboard.onKeyEvent(event) && !wasInUse
+        ) {
+            val imm = getSystemService(INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            imm?.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        com.termfold.app.ui.components.PhysicalKeyboard.onTouch(event)
+        return super.dispatchTouchEvent(event)
     }
 }
 
@@ -334,6 +368,19 @@ private fun TermFoldRoot(viewModel: AppViewModel) {
                         LaunchedEffect(current.folderId, current.sessionId) {
                             destination = Destination.Tabs
                         }
+                    } else if (session.acpAgentId.isNotBlank()) {
+                        BackHandler { destination = Destination.Folder(folder.id) }
+                        AgentSessionScreen(
+                            folder = folder,
+                            sessionId = session.id,
+                            agentId = session.acpAgentId,
+                            modifier = Modifier.windowInsetsPadding(
+                                WindowInsets.safeDrawing.only(
+                                    WindowInsetsSides.Top + WindowInsetsSides.End
+                                )
+                            ),
+                            onBack = { destination = Destination.Folder(folder.id) },
+                        )
                     } else {
                         BackHandler { destination = Destination.Folder(folder.id) }
                         TerminalScreen(
@@ -425,16 +472,20 @@ private fun OptionsLayer(
             onConfirm = {
                 if (isFolder) {
                     // End the folder's running sessions before the definitions disappear,
-                    // otherwise their PRoot processes would idle on with no way to reach them.
+                    // otherwise their processes would idle on with no way to reach them.
                     sessionIdsFor(target.folderId).forEach { sessionId ->
-                        TerminalHost.closeSession(TerminalHost.sessionKey(target.folderId, sessionId))
+                        val key = TerminalHost.sessionKey(target.folderId, sessionId)
+                        TerminalHost.closeSession(key)
+                        com.termfold.app.acp.AcpSessions.close(key)
                     }
                     viewModel.removeFolder(target.folderId)
                 } else {
                     val sessionId = (target as OptionsTarget.Session).sessionId
-                    // Removing a session ends it: the terminal closes and the process tree is
-                    // released. Opening the session again means starting a fresh one.
-                    TerminalHost.closeSession(TerminalHost.sessionKey(target.folderId, sessionId))
+                    val key = TerminalHost.sessionKey(target.folderId, sessionId)
+                    // Removing a session ends it: the terminal closes, the agent process dies,
+                    // and the process tree is released.
+                    TerminalHost.closeSession(key)
+                    com.termfold.app.acp.AcpSessions.close(key)
                     viewModel.removeSession(target.folderId, sessionId)
                 }
             },
@@ -445,8 +496,8 @@ private fun OptionsLayer(
     addSessionFor?.let { folderId ->
         NewSessionDialog(
             onDismiss = onDismissAddSession,
-            onCreate = { name, command ->
-                viewModel.addSession(folderId, name, command)
+            onCreate = { name, command, acpAgentId ->
+                viewModel.addSession(folderId, name, command, acpAgentId)
                 onDismissAddSession()
             },
         )
@@ -457,17 +508,43 @@ private fun OptionsLayer(
 @Composable
 private fun NewSessionDialog(
     onDismiss: () -> Unit,
-    onCreate: (name: String, command: String) -> Unit,
+    onCreate: (name: String, command: String, acpAgentId: String) -> Unit,
 ) {
+    val context = LocalContext.current
     val presets = SessionPreset.entries
     var selected by remember { mutableStateOf(0) }
     var name by remember { mutableStateOf("") }
     var command by remember { mutableStateOf("") }
 
-    val preset = presets[selected]
-    val presetLabel = stringResource(preset.labelRes)
-    val effectiveCommand = if (preset == SessionPreset.CUSTOM) command else preset.defaultCommand
-    val canConfirm = preset == SessionPreset.SHELL || effectiveCommand.isNotBlank()
+    // The trailing pseudo-preset switches the session into ACP mode: it runs a registry agent
+    // through the native agent interface instead of a shell.
+    val acpIndex = presets.size
+    var agents by remember { mutableStateOf<List<com.termfold.app.acp.AcpAgent>>(emptyList()) }
+    var loadingAgents by remember { mutableStateOf(false) }
+    var selectedAgent by remember {
+        mutableStateOf<com.termfold.app.acp.AcpAgent?>(null)
+    }
+
+    LaunchedEffect(selected) {
+        if (selected == acpIndex && agents.isEmpty() && !loadingAgents) {
+            loadingAgents = true
+            agents = com.termfold.app.acp.AcpRegistry.agents(context)
+            loadingAgents = false
+        }
+    }
+
+    val preset = presets.getOrNull(selected)
+    val effectiveCommand = if (preset == SessionPreset.CUSTOM) command
+    else preset?.defaultCommand.orEmpty()
+    val isAcp = selected == acpIndex
+    val fallbackName = when {
+        isAcp -> selectedAgent?.name ?: "ACP"
+        preset != null -> stringResource(preset.labelRes)
+        else -> "ACP"
+    }
+    val canConfirm = isAcp && selectedAgent != null ||
+        preset == SessionPreset.SHELL ||
+        effectiveCommand.isNotBlank()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -482,14 +559,91 @@ private fun NewSessionDialog(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 PresetChips(
-                    labels = presets.map { stringResource(it.labelRes) },
+                    labels = presets.map { stringResource(it.labelRes) } + stringResource(R.string.acp_chip),
                     selectedIndex = selected,
                     onSelect = { selected = it },
                 )
 
                 Spacer(Modifier.height(16.dp))
 
-                if (preset == SessionPreset.CUSTOM) {
+                if (isAcp) {
+                    Text(
+                        text = stringResource(R.string.acp_agent_label),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.TextFaint,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    when {
+                        loadingAgents -> Text(
+                            text = stringResource(R.string.acp_registry_loading),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.TextDim,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+
+                        agents.isEmpty() -> Text(
+                            text = stringResource(R.string.acp_registry_offline),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.Pink,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+
+                        else -> Column(
+                            modifier = Modifier
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState()),
+                        ) {
+                            agents.forEach { entry ->
+                                val active = selectedAgent?.id == entry.id
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (active) Palette.AccentSoft else Color.Transparent)
+                                        .clickable {
+                                            selectedAgent = entry
+                                            if (name.isBlank()) name = entry.name
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    com.termfold.app.ui.components.AgentIconImage(
+                                        iconUrl = entry.iconUrl,
+                                        name = entry.name,
+                                        size = 26.dp,
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            text = entry.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Palette.Text,
+                                            maxLines = 1,
+                                        )
+                                        if (entry.description.isNotBlank()) {
+                                            Text(
+                                                text = entry.description,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = Palette.TextFaint,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.acp_session_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Palette.TextFaint,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                }
+
+                if (preset == SessionPreset.CUSTOM && !isAcp) {
                     LabelledField(
                         label = stringResource(R.string.custom_command),
                         value = command,
@@ -503,7 +657,7 @@ private fun NewSessionDialog(
                     label = stringResource(R.string.cd_name),
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = presetLabel,
+                    placeholder = fallbackName,
                 )
             }
         },
@@ -511,8 +665,9 @@ private fun NewSessionDialog(
             TextButton(
                 onClick = {
                     onCreate(
-                        name.ifBlank { presetLabel }.trim(),
+                        name.ifBlank { fallbackName }.trim(),
                         effectiveCommand.trim(),
+                        if (isAcp) selectedAgent?.id.orEmpty() else "",
                     )
                 },
                 enabled = canConfirm,

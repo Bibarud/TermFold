@@ -20,6 +20,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,7 +39,6 @@ import com.termfold.app.ui.components.CircleIconButton
 import com.termfold.app.ui.components.LeadingTile
 import com.termfold.app.ui.components.ListRow
 import com.termfold.app.ui.components.RowSpacer
-import com.termfold.app.ui.components.StatusDot
 import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldIcons
 import com.termfold.app.ui.theme.folderTint
@@ -52,6 +56,36 @@ fun FolderDetailScreen(
     wide: Boolean = false,
 ) {
     val edge = if (wide) 30.dp else 22.dp
+
+    // Registry entries back the ACP session icons; the on-disk cache makes this instant after
+    // the first successful load.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var registryAgents by remember { mutableStateOf(emptyList<com.termfold.app.acp.AcpAgent>()) }
+    LaunchedEffect(Unit) {
+        registryAgents = com.termfold.app.acp.AcpRegistry.all(context)
+    }
+
+    // Which sessions are working, refreshed twice a second: an ACP agent answering or setting
+    // up, or a terminal whose program is producing output of its own.
+    var working by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(folder.id, folder.sessions) {
+        while (true) {
+            working = folder.sessions.mapNotNull { session ->
+                val key = com.termfold.app.shell.TerminalHost.sessionKey(folder.id, session.id)
+                val busy = if (session.acpAgentId.isNotBlank()) {
+                    com.termfold.app.acp.AcpSessions.client(key)?.state?.value?.let { state ->
+                        state.agentBusy ||
+                            state.phase == com.termfold.app.acp.AcpPhase.INSTALLING ||
+                            state.phase == com.termfold.app.acp.AcpPhase.CONNECTING
+                    } == true
+                } else {
+                    com.termfold.app.shell.TerminalHost.isWorking(key)
+                }
+                session.id.takeIf { busy }
+            }.toSet()
+            kotlinx.coroutines.delay(500)
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -135,10 +169,33 @@ fun FolderDetailScreen(
             ),
         ) {
             items(folder.sessions, key = { it.id }) { session ->
+                val agent = registryAgents.firstOrNull { it.id == session.acpAgentId }
                 ListRow(
                     title = session.name,
-                    leading = { SessionMarkCompact() },
+                    leading = {
+                        if (session.acpAgentId.isNotBlank()) {
+                            Box(
+                                modifier = Modifier.size(46.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                com.termfold.app.ui.components.AgentIconImage(
+                                    iconUrl = agent?.iconUrl.orEmpty(),
+                                    name = agent?.name ?: session.name,
+                                    size = 34.dp,
+                                )
+                            }
+                        } else {
+                            SessionMarkCompact()
+                        }
+                    },
                     trailing = {
+                        if (session.id in working) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.padding(end = 4.dp).size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Palette.Accent,
+                            )
+                        }
                         BareIconButton(
                             icon = TermFoldIcons.More,
                             contentDescription = stringResource(R.string.cd_more),
@@ -188,8 +245,6 @@ private fun UnmappedPathNotice(modifier: Modifier = Modifier) {
             .padding(18.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(Palette.Yellow)
-            Spacer(Modifier.size(10.dp))
             Text(
                 text = stringResource(R.string.unmapped_path_title),
                 style = MaterialTheme.typography.titleMedium,

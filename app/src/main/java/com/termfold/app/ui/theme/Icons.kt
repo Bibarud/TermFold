@@ -238,4 +238,101 @@ object TermFoldIcons {
             )
             .build()
     }
+
+    /** One stroked glyph from path strings, in the set's usual weight and joins. */
+    private fun stroked(name: String, vararg paths: String, width: Float = STROKE): ImageVector {
+        val builder = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+        paths.forEach { path ->
+            builder.addPath(
+                pathData = addPathNodes(path),
+                stroke = SolidColor(Color.White),
+                strokeLineWidth = width,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+            )
+        }
+        return builder.build()
+    }
+
+    /** A picture: frame, sun, and a hill. Attach-image and image-key affordances. */
+    val Image: ImageVector by lazy {
+        stroked(
+            "Image",
+            "M5.5,5 H18.5 C19.33,5 20,5.67 20,6.5 V17.5 C20,18.33 19.33,19 18.5,19 H5.5 " +
+                "C4.67,19 4,18.33 4,17.5 V6.5 C4,5.67 4.67,5 5.5,5 Z",
+            "M9,10.2 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0",
+            "M4.4,16.4 L9.2,12.6 L12.6,15.4 L15.2,13.2 L19.6,16.8",
+        )
+    }
+
+    /** A page with a folded corner and two text lines: a pasted-text attachment. */
+    val FileText: ImageVector by lazy {
+        stroked(
+            "FileText",
+            "M7,4 H13.6 L18,8.4 V18.5 C18,19.33 17.33,20 16.5,20 H7 C6.17,20 5.5,19.33 5.5,18.5 " +
+                "V5.5 C5.5,4.67 6.17,4 7,4 Z",
+            "M13.4,4.2 V8.6 H17.8",
+            "M8.6,12.6 H14.9",
+            "M8.6,15.8 H13",
+        )
+    }
+
+    /** Rounded square: stop the running turn. */
+    val Stop: ImageVector by lazy {
+        stroked(
+            "Stop",
+            "M8.6,7.4 H15.4 C16.06,7.4 16.6,7.94 16.6,8.6 V15.4 C16.6,16.06 16.06,16.6 15.4,16.6 " +
+                "H8.6 C7.94,16.6 7.4,16.06 7.4,15.4 V8.6 C7.4,7.94 7.94,7.4 8.6,7.4 Z",
+            width = 2f,
+        )
+    }
+
+    /** Two offset sheets: copy to clipboard. */
+    val Copy: ImageVector by lazy {
+        stroked(
+            "Copy",
+            "M9.6,8.6 H17 C17.77,8.6 18.4,9.23 18.4,10 V18 C18.4,18.77 17.77,19.4 17,19.4 H9.6 " +
+                "C8.83,19.4 8.2,18.77 8.2,18 V10 C8.2,9.23 8.83,8.6 9.6,8.6 Z",
+            "M15.6,5.8 V5.6 C15.6,4.83 14.97,4.2 14.2,4.2 H7 C6.23,4.2 5.6,4.83 5.6,5.6 V13.6 " +
+                "C5.6,14.37 6.23,15 7,15 H7.4",
+        )
+    }
+
+    /** An open circle with an arrowhead: restart / retry. */
+    val Refresh: ImageVector by lazy {
+        stroked(
+            "Refresh",
+            "M18.6,12 A6.6,6.6 0 1,1 16.4,7.1",
+            "M16.9,3.9 L16.9,7.5 L13.3,7.5",
+        )
+    }
+
+    /** A cross: remove an attachment, dismiss. */
+    val Close: ImageVector by lazy {
+        stroked("Close", "M7,7 L17,17", "M17,7 L7,17", width = 2f)
+    }
+
+    /** A tick: done. */
+    val Check: ImageVector by lazy {
+        stroked("Check", "M5.6,12.6 L10,16.8 L18.4,7.6", width = 2f)
+    }
+
+    /** A pencil: file edits in tool calls. */
+    val Pencil: ImageVector by lazy {
+        stroked(
+            "Pencil",
+            "M14.6,5.6 L18.4,9.4 L9.2,18.6 L5,19.4 L5.8,15.2 Z",
+            "M12.8,7.4 L16.6,11.2",
+        )
+    }
+
+    /** Three sliders: session settings (model, reasoning level, mode). */
+    val Sliders: ImageVector by lazy {
+        stroked(
+            "Sliders",
+            "M4.6,7 H19.4", "M4.6,12 H19.4", "M4.6,17 H19.4",
+            "M9,5.2 V8.8", "M15.4,10.2 V13.8", "M7.4,15.2 V18.8",
+            width = 1.8f,
+        )
+    }
 }

@@ -149,25 +149,55 @@ data class ShellStatus(
     val supported: Boolean,
 )
 
-/** Reads the current state of the bundled environment without provisioning it. */
-fun shellStatus(context: Context): ShellStatus {
+/**
+ * Reads the current state of the bundled environment without provisioning it. Cheap: the size
+ * on disk is not included, because measuring it means visiting every file; see [shellSizeText].
+ */
+fun shellStatus(context: Context, sizeText: String = ""): ShellStatus {
     val abi = Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
     val supported = com.termfold.app.shell.ShellConfig.rootfsAbi(abi) != null
     val ready = runCatching { ShellRuntime.isReady(context) }.getOrDefault(false)
-
-    val bytes = runCatching {
-        val root = ShellPaths.rootDir(context)
-        root.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-    }.getOrDefault(0L)
-    Log.d("ShellStatus", "rootfs bytes=$bytes")
-
     return ShellStatus(
         ready = ready,
         flavour = ShellRuntime.FLAVOUR,
         architecture = abi,
-        sizeText = formatBytes(bytes),
+        sizeText = sizeText,
         supported = supported,
     )
+}
+
+/**
+ * The environment's size on disk. Call it off the main thread: once apt, Node and agents are
+ * installed it is tens of thousands of files.
+ *
+ * Symlinks are never followed. Ubuntu has directory links that point back up the tree
+ * (`/usr/bin/X11 -> .`), and following them made the old walk loop until the app was killed,
+ * which is what closed the app on opening Settings.
+ */
+fun shellSizeText(context: Context): String {
+    val bytes = runCatching {
+        var total = 0L
+        java.nio.file.Files.walkFileTree(
+            ShellPaths.rootDir(context).toPath(),
+            object : java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+                override fun visitFile(
+                    file: java.nio.file.Path,
+                    attrs: java.nio.file.attribute.BasicFileAttributes,
+                ): java.nio.file.FileVisitResult {
+                    if (attrs.isRegularFile) total += attrs.size()
+                    return java.nio.file.FileVisitResult.CONTINUE
+                }
+
+                override fun visitFileFailed(
+                    file: java.nio.file.Path,
+                    exc: java.io.IOException,
+                ): java.nio.file.FileVisitResult = java.nio.file.FileVisitResult.CONTINUE
+            },
+        )
+        total
+    }.getOrDefault(0L)
+    Log.d("ShellStatus", "rootfs bytes=$bytes")
+    return formatBytes(bytes)
 }
 
 private fun formatBytes(bytes: Long): String = when {

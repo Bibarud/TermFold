@@ -118,6 +118,12 @@ object TerminalHost : TerminalHostCallbacks {
 
     val currentBridge: TerminalBridge? get() = bridge
 
+    /** Whether the stored session for [key] is running something right now (see TerminalBridge). */
+    fun isWorking(key: String): Boolean {
+        val entry = entries[key] ?: return false
+        return entry.session.isRunning && entry.bridge.isWorking
+    }
+
     /** The host key under which a folder's session entry is stored. */
     fun sessionKey(folderId: String, sessionId: String): String = "$folderId/$sessionId"
 
@@ -200,20 +206,52 @@ object TerminalHost : TerminalHostCallbacks {
     }
 
     /**
-     * Pastes clipboard text into the shell.
+     * Pastes the clipboard into the shell.
      *
-     * Newlines are stripped rather than sent: a multi-line paste would otherwise execute each
-     * line as it arrived, which turns copying a snippet into running it.
+     * Text goes through the emulator's own paste, which wraps it in bracketed-paste markers
+     * whenever the program asked for them (bash, Claude Code, OpenCode and vim all do), so a
+     * multi-line snippet arrives as one paste instead of being run line by line, and TUIs keep
+     * its newlines.
+     *
+     * An image is saved into the guest and its path is typed instead: terminal agents take an
+     * image by path, and there is no other way to hand one across a PTY.
+     *
+     * Returns false when the clipboard held nothing usable.
      */
-    fun paste(context: Context) {
+    fun paste(context: Context): Boolean {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        val text = clipboard?.primaryClip
-            ?.takeIf { it.itemCount > 0 }
-            ?.getItemAt(0)
-            ?.coerceToText(context)
-            ?.toString()
-            ?: return
-        write(text.replace("\r", "").replace("\n", " "))
+        val item = clipboard?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0) ?: return false
+        val uri = item.uri
+        if (uri != null && com.termfold.app.acp.PastedImages.isImage(context, uri)) {
+            insertImage(context, uri)
+            return true
+        }
+        val text = item.coerceToText(context)?.toString()?.takeIf { it.isNotEmpty() } ?: return false
+        val emulator = session?.emulator
+        if (emulator != null) emulator.paste(text) else write(text)
+        return true
+    }
+
+    /**
+     * Copies an image into the guest's /tmp and types its path at the cursor. Decoding happens
+     * off the main thread; the path is typed when it is ready.
+     */
+    fun insertImage(context: Context, uri: android.net.Uri) {
+        val app = context.applicationContext
+        Thread {
+            val encoded = com.termfold.app.acp.PastedImages.load(app, uri) ?: return@Thread
+            val dir = java.io.File(ShellPaths.rootfsDir(app), "tmp/termfold")
+            dir.mkdirs()
+            val name = "image-${System.currentTimeMillis()}.${encoded.extension}"
+            java.io.File(dir, name).writeBytes(encoded.bytes)
+            // Delivered as a paste (bracketed), not typed: Codex and Claude Code turn a *pasted*
+            // image path into an image attachment. The emulator is not thread-safe, hence main.
+            val path = "/tmp/termfold/$name"
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val emulator = session?.emulator
+                if (emulator != null) emulator.paste(path) else write("$path ")
+            }
+        }.start()
     }
 
     // --- TerminalHostCallbacks ------------------------------------------------------------------

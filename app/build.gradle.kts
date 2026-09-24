@@ -16,8 +16,8 @@ android {
         // runs in the untrusted_app domain and execve is denied outright. This is exactly why
         // Termux itself pins targetSdk=28. Without it the bundled PRoot cannot start at all.
         targetSdk = 28
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     androidResources {
@@ -84,6 +84,15 @@ android {
         disable += "ExpiredTargetSdkVersion"
     }
 
+    // Output APKs carry the app's name rather than the module's: "TermFold-release.apk" instead
+    // of "app-release.apk".
+    applicationVariants.all {
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+                .outputFileName = "TermFold-${name}.apk"
+        }
+    }
+
     // Bundled executables ship as lib*.so and are extracted so the OS places them in
     // nativeLibraryDir, the one location this app's SELinux domain may execute from.
     androidResources {
@@ -127,10 +136,20 @@ dependencies {
 
     implementation("androidx.datastore:datastore-preferences:1.1.7")
     implementation("androidx.documentfile:documentfile:1.0.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")
 
     // The tar reader that unpacks the bundled rootfs is pure Kotlin with no Android
     // dependencies, so it is covered by a plain JVM test against the real Ubuntu image.
     testImplementation("junit:junit:4.13.2")
+
+    // Bzip2 decompression for registry agents that ship .tar.bz2 archives (goose). Only the
+    // bzip2 decoder is used — tar and zip parsing stay in the app's own pure-Kotlin reader.
+    implementation("org.apache.commons:commons-compress:1.25.0")
+
+    // A real org.json for the JVM tests, whose classpath otherwise only has the Android
+    // stubs that throw on every call.
+    testImplementation("org.json:json:20240303")
 }
 
 tasks.withType<Test>().configureEach {
@@ -140,4 +159,9 @@ tasks.withType<Test>().configureEach {
         "termfold.rootfsAsset",
         layout.projectDirectory.file("src/main/assets/ubuntu-x86_64.bin").asFile.absolutePath,
     )
+    // A local set of downloaded registry archives, when present, drives the AcpArchivesTest
+    // against real agent downloads: -Dtermfold.acpArchives=<dir> on the gradle command line.
+    System.getProperty("termfold.acpArchives")?.let {
+        systemProperty("termfold.acpArchives", it)
+    }
 }

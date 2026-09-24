@@ -37,6 +37,13 @@ object ShellSessions {
             ShellConfig.WORKSPACE
         }
 
+        // Until the one-time environment setup has completed, every session runs it first, in
+        // front of the user, then carries on to its prompt or preset.
+        val needsSetup = !ShellSetup.isDone(context)
+        // A session opened right after launch can beat the background refresh that installs the
+        // script; installing here too (a few small files, skipped when unchanged) closes that gap.
+        if (needsSetup) ShellSetup.install(context, ShellPaths.rootfsDir(context))
+
         val argv = buildList {
             add(ShellConfig.GUEST_SHELL)
             add("--login")
@@ -44,9 +51,16 @@ object ShellSessions {
             // Only add the command form when there is a command. An empty `-c ""` argument is not
             // harmless: the arguments go through `env -i`, an empty string there is dropped, and
             // the invocation then becomes something bash does not accept.
-            if (initialCommand.isNotBlank()) {
-                add("-c")
-                add(bootstrapScript(initialCommand))
+            when {
+                initialCommand.isNotBlank() -> {
+                    add("-c")
+                    val script = bootstrapScript(initialCommand)
+                    add(if (needsSetup) ShellSetup.wrap(script) else script)
+                }
+                needsSetup -> {
+                    add("-c")
+                    add(ShellSetup.wrap("exec \"\$SHELL\" -l"))
+                }
             }
         }
 

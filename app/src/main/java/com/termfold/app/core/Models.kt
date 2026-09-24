@@ -25,6 +25,11 @@ data class Session(
     val name: String,
     val command: String,
     val tint: Int,
+    /**
+     * Registry id of the ACP agent this session runs as (e.g. "opencode"). Blank means the
+     * session opens as an ordinary shell in the terminal.
+     */
+    val acpAgentId: String = "",
 )
 
 data class Folder(

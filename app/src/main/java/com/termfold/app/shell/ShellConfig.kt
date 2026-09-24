@@ -82,6 +82,15 @@ object ShellConfig {
         return cleaned
     }
 
+    /**
+     * Where the /proc/self/fd dlopen shim lives in the guest (see tools/procfd-shim). It is
+     * preloaded only into agents that need it, via `LD_PRELOAD`.
+     */
+    const val PROCFD_SHIM = "/opt/termfold/procfd-shim.so"
+
+    /** The shim's asset for an ABI. */
+    fun procfdShimAsset(abi: String): String = "procfd-shim-$abi.so"
+
     /** Bundled rootfs archives, one per ABI, stored with a neutral extension. */
     fun rootfsAsset(abi: String): String = "ubuntu-$abi.bin"
 

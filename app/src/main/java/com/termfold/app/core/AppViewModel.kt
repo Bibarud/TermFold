@@ -53,9 +53,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * Safe to call repeatedly: [ShellRuntime.provision] returns immediately once the rootfs
      * marker is in place, so this is a cheap no-op on every launch after the first.
      */
+    /** Whether this process has already run the refresh for an existing environment. */
+    private var refreshed = false
+
     fun ensureShellReady() {
         val current = _shell.value
-        if (current.state == ShellState.PREPARING || current.state == ShellState.READY) return
+        if (current.state == ShellState.READY) {
+            // Already unpacked: still run provision's cheap path once per process. It is what
+            // brings an existing install up to date after an app update (setup script, git
+            // defaults, helper libraries); skipping it left those only on fresh installs.
+            if (!refreshed) {
+                refreshed = true
+                viewModelScope.launch(Dispatchers.IO) {
+                    runCatching { ShellRuntime.provision(getApplication()) }
+                        .onFailure { Log.w("AppViewModel", "Environment refresh failed", it) }
+                }
+            }
+            return
+        }
+        if (current.state == ShellState.PREPARING) return
 
         _shell.value = ShellProgress(state = ShellState.PREPARING, step = "", fraction = 0f)
         viewModelScope.launch {
@@ -129,7 +145,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addSession(folderId: String, name: String, command: String) {
+    fun addSession(folderId: String, name: String, command: String, acpAgentId: String = "") {
         viewModelScope.launch {
             store.update { data ->
                 data.copy(
@@ -140,6 +156,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             name = name,
                             command = command,
                             tint = folder.sessions.size % 6,
+                            acpAgentId = acpAgentId,
                         )
                         folder.copy(sessions = folder.sessions + session)
                     }

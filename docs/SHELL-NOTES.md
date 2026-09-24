@@ -129,6 +129,22 @@ scratch rather than retried.
   needs a writable `/dev/shm` inside the guest, which apt requires and Android's own is not.
 - **`PRoot --sysvipc`** is needed for apt's lockless download methods.
 - **`PRoot --kill-on-exit`** stops an interrupted agent leaving orphaned processes on a phone.
+- **Never set `PROOT_NO_SECCOMP`, not even to `0`.** PRoot tests only `getenv(...) == NULL`, so
+  any value disables the seccomp mode that rewrites Android-blocked `rename(2)` into `renameat`.
+  Symptom: apt fails with "Problem renaming the file ... pkgcache.bin - rename (38: Function not
+  implemented)".
+- **IPv6 resolvers must not lead `resolv.conf`.** The emulator reports `fec0::3` first and it is
+  unreachable from the guest, so every lookup fails with "Temporary failure resolving". Only IPv4
+  resolvers are written, public fallbacks appended, and the file is refreshed per session.
+- **Git in a picked folder needs two system defaults** (`/etc/gitconfig`): `safe.directory = *`,
+  because shared storage belongs to the media UID ("detected dubious ownership"), and
+  `core.createObject = rename`, because shared storage has no symlinks so `--link2symlink` cannot
+  fake `link(2)` there and `git clone` dies renaming its pack file.
+- **The base image has no tzdata**, and glibc treats an unknown `TZ` name as UTC. A POSIX
+  fixed-offset `TZ` is passed until `tzdata` is installed.
+- **Building on this Windows host**: if Gradle fails with "Unable to establish loopback
+  connection", set `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:\gtmp` (any short writable
+  directory).
 
 ## Verified working
 

@@ -65,6 +65,7 @@ class FolderStore(private val context: Context) {
                     name = session.getString("name"),
                     command = session.optString("command"),
                     tint = session.optInt("tint"),
+                    acpAgentId = session.optString("acpAgentId"),
                 )
             },
         )
@@ -79,6 +80,7 @@ class FolderStore(private val context: Context) {
                     .put("name", session.name)
                     .put("command", session.command)
                     .put("tint", session.tint)
+                    .put("acpAgentId", session.acpAgentId)
             )
         }
         return JSONObject()

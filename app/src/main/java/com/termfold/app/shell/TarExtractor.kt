@@ -23,11 +23,17 @@ internal object TarExtractor {
 
     private const val BLOCK = 512
 
-    /** Extracts [archive] into [destination], which is created if needed. */
+    /**
+     * Extracts [archive] into [destination], which is created if needed.
+     *
+     * [archive] must be an uncompressed tar stream unless [gunzip] is set; the agent archives
+     * pass pre-decompressed streams (bzip2, or a plain tar) and so ask for [gunzip] = false.
+     */
     fun extract(
         archive: InputStream,
         destination: File,
         onWarning: (String) -> Unit = {},
+        gunzip: Boolean = true,
     ) {
         destination.mkdirs()
 
@@ -35,94 +41,95 @@ internal object TarExtractor {
         var pendingLongName: String? = null
         var pendingLongLink: String? = null
 
-        GZIPInputStream(archive, 1 shl 16).use { tar ->
-            while (true) {
-                if (!readFully(tar, buffer)) break
+        val tar = if (gunzip) GZIPInputStream(archive, 1 shl 16) else archive
+        tar.use { stream ->
+        while (true) {
+            if (!readFully(stream, buffer)) break
 
-                // The archive ends with one or more all-zero blocks.
-                if (buffer.all { it == 0.toByte() }) break
+            // The archive ends with one or more all-zero blocks.
+            if (buffer.all { it == 0.toByte() }) break
 
-                val name = pendingLongName ?: readString(buffer, 0, 100)
-                val linkName = pendingLongLink ?: readString(buffer, 157, 100)
-                pendingLongName = null
-                pendingLongLink = null
+            val name = pendingLongName ?: readString(buffer, 0, 100)
+            val linkName = pendingLongLink ?: readString(buffer, 157, 100)
+            pendingLongName = null
+            pendingLongLink = null
 
-                val prefix = readString(buffer, 345, 155)
-                val size = readOctal(buffer, 124, 12)
-                val mode = readOctal(buffer, 100, 8).toInt()
-                val type = buffer[156].toInt().toChar()
+            val prefix = readString(buffer, 345, 155)
+            val size = readOctal(buffer, 124, 12)
+            val mode = readOctal(buffer, 100, 8).toInt()
+            val type = buffer[156].toInt().toChar()
 
-                val fullName = if (prefix.isNotEmpty()) "$prefix/$name" else name
+            val fullName = if (prefix.isNotEmpty()) "$prefix/$name" else name
 
-                // Whether the branch below consumed this entry's payload. Exactly one of the two
-                // must happen: reading it and then also skipping it desynchronises the whole
-                // stream, which shows up as nonsense filenames several hundred entries later.
-                var payloadRead = false
+            // Whether the branch below consumed this entry's payload. Exactly one of the two
+            // must happen: reading it and then also skipping it desynchronises the whole
+            // stream, which shows up as nonsense filenames several hundred entries later.
+            var payloadRead = false
 
-                when (type) {
-                    // GNU long name / long link: the payload is the name for the next entry.
-                    'L' -> {
-                        pendingLongName = readPayload(tar, size).toString(Charsets.UTF_8).trimEnd('\u0000')
-                        payloadRead = true
-                    }
-
-                    'K' -> {
-                        pendingLongLink = readPayload(tar, size).toString(Charsets.UTF_8).trimEnd('\u0000')
-                        payloadRead = true
-                    }
-                    // PAX headers carry extended attributes; only "path" and "linkpath" matter here.
-                    'x', 'g' -> {
-                        parsePax(readPayload(tar, size).toString(Charsets.UTF_8)).forEach { (key, value) ->
-                            when (key) {
-                                "path" -> pendingLongName = value
-                                "linkpath" -> pendingLongLink = value
-                            }
-                        }
-                        payloadRead = true
-                    }
-
-                    // A regular file: its contents are this entry's payload.
-                    '0', '\u0000', '7' -> {
-                        val file = target(destination, fullName)
-                        file.parentFile?.mkdirs()
-                        writeFile(tar, file, size, mode)
-                        // The payload has been consumed, but its block padding has not.
-                        skipPadding(tar, size)
-                        payloadRead = true
-                    }
-
-                    '5' -> target(destination, fullName).mkdirs()
-
-                    '2' -> {
-                        val link = target(destination, fullName)
-                        link.parentFile?.mkdirs()
-                        createSymlink(link, linkName, onWarning)
-                    }
-
-                    // A hard link: both names have to end up referring to one file. If the
-                    // filesystem refuses, a copy is a correct if slightly wasteful substitute.
-                    '1' -> {
-                        val link = target(destination, fullName)
-                        val source = target(destination, linkName)
-                        link.parentFile?.mkdirs()
-                        runCatching {
-                            link.delete()
-                            Files.createLink(link.toPath(), source.toPath())
-                        }.onFailure {
-                            runCatching { source.copyTo(link, overwrite = true) }
-                        }
-                    }
-
-                    // Character/block devices, FIFOs and GNU sparse entries do not appear in the
-                    // images this app ships, and creating them would need privileges anyway.
-                    else -> Unit
+            when (type) {
+                // GNU long name / long link: the payload is the name for the next entry.
+                'L' -> {
+                    pendingLongName = readPayload(stream, size).toString(Charsets.UTF_8).trimEnd('\u0000')
+                    payloadRead = true
                 }
 
-                if (!payloadRead) {
-                    // Payloads are padded out to a whole block; the padding is always consumed.
-                    skipFully(tar, size + paddingFor(size))
+                'K' -> {
+                    pendingLongLink = readPayload(stream, size).toString(Charsets.UTF_8).trimEnd('\u0000')
+                    payloadRead = true
                 }
+                // PAX headers carry extended attributes; only "path" and "linkpath" matter here.
+                'x', 'g' -> {
+                    parsePax(readPayload(stream, size).toString(Charsets.UTF_8)).forEach { (key, value) ->
+                        when (key) {
+                            "path" -> pendingLongName = value
+                            "linkpath" -> pendingLongLink = value
+                        }
+                    }
+                    payloadRead = true
+                }
+
+                // A regular file: its contents are this entry's payload.
+                '0', '\u0000', '7' -> {
+                    val file = target(destination, fullName)
+                    file.parentFile?.mkdirs()
+                    writeFile(stream, file, size, mode)
+                    // The payload has been consumed, but its block padding has not.
+                    skipPadding(stream, size)
+                    payloadRead = true
+                }
+
+                '5' -> target(destination, fullName).mkdirs()
+
+                '2' -> {
+                    val link = target(destination, fullName)
+                    link.parentFile?.mkdirs()
+                    createSymlink(link, linkName, onWarning)
+                }
+
+                // A hard link: both names have to end up referring to one file. If the
+                // filesystem refuses, a copy is a correct if slightly wasteful substitute.
+                '1' -> {
+                    val link = target(destination, fullName)
+                    val source = target(destination, linkName)
+                    link.parentFile?.mkdirs()
+                    runCatching {
+                        link.delete()
+                        Files.createLink(link.toPath(), source.toPath())
+                    }.onFailure {
+                        runCatching { source.copyTo(link, overwrite = true) }
+                    }
+                }
+
+                // Character/block devices, FIFOs and GNU sparse entries do not appear in the
+                // images this app ships, and creating them would need privileges anyway.
+                else -> Unit
             }
+
+            if (!payloadRead) {
+                // Payloads are padded out to a whole block; the padding is always consumed.
+                skipFully(stream, size + paddingFor(size))
+            }
+        }
         }
     }
     /** Resolves a tar entry name against the destination, refusing to escape it. */

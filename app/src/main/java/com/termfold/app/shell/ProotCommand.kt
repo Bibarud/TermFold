@@ -48,17 +48,11 @@ object ProotCommand {
             // die with "can't fork". App-private storage is not f2fs, so the probe is pointless.
             put("PROOT_F2FS_WORKAROUND", "0")
 
-            // PRoot's seccomp-accelerated syscall path: this app cannot use PRoot's *own* seccomp
-            // filter, because the tracee is already constrained by Android's.
-            //
-            // But PRoot must still be allowed to observe `PTRACE_EVENT_SECCOMP` stops, because
-            // that is how it recognises that a SIGSYS came from Android's outer filter rather than
-            // from the traced program. Android blocks `rename(2)` outright, and PRoot's whole
-            // remedy for that is a handler that rewrites it into `renameat(2)` — which only runs
-            // when PRoot knows the trap is its to interpret. Setting this to 1 disables that
-            // detection and every `rename` in the guest then fails with ENOSYS, which breaks apt:
-            // "Problem renaming the file /var/cache/apt/pkgcache.bin...".
-            put("PROOT_NO_SECCOMP", "0")
+            // PROOT_NO_SECCOMP is deliberately NOT set, not even to "0": PRoot only tests
+            // `getenv("PROOT_NO_SECCOMP") == NULL`, so any value disables its seccomp mode.
+            // That mode is what rewrites syscalls Android's filter blocks (notably `rename(2)`)
+            // into allowed ones; without it every `rename` in the guest fails with ENOSYS and
+            // apt breaks with "Problem renaming the file /var/cache/apt/pkgcache.bin...".
         }
     }
 
@@ -75,7 +69,12 @@ object ProotCommand {
         argv: List<String>,
         guestCwd: String? = null,
         guestMountPath: String = ShellConfig.WORKSPACE,
+        pathPrefix: String? = null,
+        extraEnv: Map<String, String> = emptyMap(),
     ): List<String> {
+        // The resolver is bound into the guest, so refresh it for whichever network is current.
+        runCatching { ShellRuntime.writeHostFiles(context) }
+
         val command = mutableListOf(
             tool(context, ShellConfig.NATIVE_PROOT),
             "-r", ShellPaths.rootfsDir(context).absolutePath,
@@ -128,7 +127,25 @@ object ProotCommand {
             // app's environment would leak Android paths into the guest.
             "/usr/bin/env", "-i",
         )
-        guestEnvironment().forEach { (key, value) -> command += "$key=$value" }
+        guestEnvironment(ShellPaths.rootfsDir(context)).forEach { (key, value) ->
+            // Some guests (Node-based npx agents) bring their own toolchain directory that has
+            // to sit ahead of the system one.
+            if (key == "PATH" && !pathPrefix.isNullOrBlank()) {
+                command += "PATH=$pathPrefix:$value"
+            } else {
+                command += "$key=$value"
+            }
+        }
+        // Agent-specific variables (uv's cache locations, registry-required settings) come
+        // after the base set so they win on duplicate keys; a PATH override still gets the
+        // toolchain prefix so `npx` etc. stay reachable.
+        extraEnv.forEach { (key, value) ->
+            command += if (key == "PATH" && !pathPrefix.isNullOrBlank()) {
+                "PATH=$pathPrefix:$value"
+            } else {
+                "$key=$value"
+            }
+        }
         command += argv
         return command
     }
@@ -139,11 +156,15 @@ object ProotCommand {
         workspace: String?,
         shellCommand: String,
         guestCwd: String? = null,
+        pathPrefix: String? = null,
+        extraEnv: Map<String, String> = emptyMap(),
     ): List<String> = build(
         context = context,
         workspace = workspace,
         argv = listOf(ShellConfig.GUEST_SHELL, "--login", "-c", shellCommand),
         guestCwd = guestCwd,
+        pathPrefix = pathPrefix,
+        extraEnv = extraEnv,
     )
 
     /**
@@ -152,8 +173,10 @@ object ProotCommand {
      * `TERMUX_*` variables are deliberately absent: Termux's own binaries read them to locate
      * their prefix, and the guest must not be told it is running under Termux.
      */
-    fun guestEnvironment(): Map<String, String> = buildMap {
-        put("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
+    fun guestEnvironment(rootfs: File? = null): Map<String, String> = buildMap {
+        // /opt/node/bin first: Node and every `npm install -g` CLI (claude, codex, ...) live there,
+        // ahead of the on-demand installer shims in /usr/local/bin that stand in until then.
+        put("PATH", "/opt/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin")
         put("HOME", ShellConfig.GUEST_HOME)
         put("PWD", ShellConfig.GUEST_HOME)
 
@@ -166,7 +189,7 @@ object ProotCommand {
         // apt and Python emit warnings and mangle non-ASCII output.
         put("LANG", "C.UTF-8")
         put("LC_ALL", "C.UTF-8")
-        put("TZ", java.util.TimeZone.getDefault().id)
+        put("TZ", guestTimeZone(rootfs))
 
         // The certificate authorities the guest uses for https.
         //
@@ -192,6 +215,24 @@ object ProotCommand {
 
         // PRoot needs its own scratch directory inside the guest too.
         put("PROOT_TMP_DIR", "/tmp")
+    }
+
+    /**
+     * The host's time zone in a form the guest can resolve.
+     *
+     * The base image ships no tzdata, and glibc silently falls back to UTC for an unknown zone
+     * name, so file times and `date` would be off by the local offset. The zone name is used when
+     * the guest has it (after `apt install tzdata`, which also keeps DST rules); otherwise a POSIX
+     * fixed-offset string is used, whose sign convention is the inverse of UTC offsets.
+     */
+    internal fun guestTimeZone(rootfs: File?, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
+        if (rootfs != null && File(rootfs, "usr/share/zoneinfo/${zone.id}").isFile) return zone.id
+        val totalMinutes = zone.getOffset(System.currentTimeMillis()) / 60_000
+        val sign = if (totalMinutes >= 0) "-" else "+"
+        val abs = kotlin.math.abs(totalMinutes)
+        val hhmm = "%02d:%02d".format(abs / 60, abs % 60)
+        val name = (if (totalMinutes >= 0) "+" else "-") + "%02d%02d".format(abs / 60, abs % 60)
+        return "<$name>$sign$hhmm"
     }
 
     /** Where the CA bundle is installed inside the guest. */

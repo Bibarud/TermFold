@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,7 +28,6 @@ import com.termfold.app.R
 import com.termfold.app.core.ShellState
 import com.termfold.app.ui.components.BottomNavSpacer
 import com.termfold.app.ui.components.GroupLabel
-import com.termfold.app.ui.components.StatusDot
 import com.termfold.app.ui.theme.Mono
 import com.termfold.app.ui.theme.Palette
 
@@ -42,7 +42,14 @@ fun SettingsScreen(
     wide: Boolean = false,
 ) {
     val context = LocalContext.current
-    val status = remember(shellState) { shellStatus(context) }
+    // The size is measured in the background; everything else is instant.
+    val sizeText by androidx.compose.runtime.produceState(
+        initialValue = context.getString(R.string.shell_size_calculating),
+        shellState,
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { shellSizeText(context) }
+    }
+    val status = remember(shellState, sizeText) { shellStatus(context, sizeText) }
     val edge = if (wide) 30.dp else 22.dp
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -142,14 +149,6 @@ private fun ShellCard(
             .padding(18.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(
-                when {
-                    unsupported -> Palette.Pink
-                    ready -> Palette.Green
-                    else -> Palette.Yellow
-                }
-            )
-            Spacer(Modifier.size(10.dp))
             Text(
                 text = stringResource(
                     if (ready) R.string.shell_ready else R.string.shell_not_ready
