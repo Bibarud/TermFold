@@ -20,6 +20,13 @@ import java.io.InputStreamReader
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
+/**
+ * A string field that may be missing or JSON `null`. `optString` turns `null` into the text
+ * "null", which then shows up in the UI as if it were a real name or description.
+ */
+internal fun JSONObject.text(key: String): String =
+    if (isNull(key)) "" else optString(key)
+
 /** One content block inside a prompt or an agent update. */
 sealed interface AcpBlock {
     data class Text(val text: String) : AcpBlock
@@ -549,34 +556,48 @@ class AcpClient(
     private fun parseSettings(result: JSONObject?): List<AcpSetting> {
         result ?: return emptyList()
         val config = parseConfigOptions(result.optJSONArray("configOptions"))
-        val covered = config.map { it.category }.toSet()
+        // An agent that publishes configOptions describes everything there; per the protocol its
+        // `models` / `modes` are then only a fallback for older clients. Pi, for one, repeats its
+        // thinking levels as "modes", which would otherwise show up twice.
+        if (config.isNotEmpty()) return config
         val legacy = buildList {
-            result.optJSONObject("models")?.takeIf { "model" !in covered }?.let { models ->
+            result.optJSONObject("models")?.let { models ->
                 val list = models.optJSONArray("availableModels") ?: JSONArray()
                 val choices = List(list.length()) { list.optJSONObject(it) }.filterNotNull().map {
-                    AcpChoice(it.optString("modelId"), it.optString("name").ifBlank { it.optString("modelId") }, it.optString("description"))
+                    AcpChoice(it.text("modelId"), it.text("name").ifBlank { it.text("modelId") }, it.text("description"))
                 }
                 if (choices.isNotEmpty()) {
-                    add(AcpSetting("model", "Model", "model", false, models.optString("currentModelId"), choices, AcpSetting.Source.MODEL))
+                    add(AcpSetting("model", "Model", "model", false, models.text("currentModelId"), choices, AcpSetting.Source.MODEL))
                 }
             }
-            result.optJSONObject("modes")?.takeIf { "mode" !in covered }?.let { modes ->
+            result.optJSONObject("modes")?.let { modes ->
                 val list = modes.optJSONArray("availableModes") ?: JSONArray()
                 val choices = List(list.length()) { list.optJSONObject(it) }.filterNotNull().map {
-                    AcpChoice(it.optString("id"), it.optString("name").ifBlank { it.optString("id") }, it.optString("description"))
+                    AcpChoice(it.text("id"), it.text("name").ifBlank { it.text("id") }, it.text("description"))
                 }
                 if (choices.isNotEmpty()) {
-                    add(AcpSetting("mode", "Mode", "mode", false, modes.optString("currentModeId"), choices, AcpSetting.Source.MODE))
+                    add(AcpSetting("mode", "Mode", "mode", false, modes.text("currentModeId"), choices, AcpSetting.Source.MODE))
                 }
             }
         }
-        return config + legacy
+        return legacy.map { it.copy(choices = withoutSharedPrefix(it.choices)) }
+    }
+
+    /**
+     * Drops a "Label: " prefix every choice shares ("Thinking: off", "Thinking: low", ...): the
+     * setting's own name already says it, and in a row of chips it is just noise.
+     */
+    private fun withoutSharedPrefix(choices: List<AcpChoice>): List<AcpChoice> {
+        if (choices.size < 2) return choices
+        val prefix = Regex("""^([^:]{1,24}):\s+""").find(choices.first().name)?.value ?: return choices
+        if (!choices.all { it.name.startsWith(prefix) && it.name.length > prefix.length }) return choices
+        return choices.map { it.copy(name = it.name.removePrefix(prefix)) }
     }
 
     private fun parseConfigOptions(array: JSONArray?): List<AcpSetting> {
         array ?: return emptyList()
         return List(array.length()) { array.optJSONObject(it) }.filterNotNull().mapNotNull { option ->
-            val id = option.optString("id").ifBlank { return@mapNotNull null }
+            val id = option.text("id").ifBlank { return@mapNotNull null }
             val toggle = option.optString("type") == "boolean"
             // Select values may be flat or grouped ({group, name, options:[...]}); groups are
             // flattened, which is all a phone-sized picker needs.
@@ -588,21 +609,22 @@ class AcpClient(
                     if (entry.has("options")) {
                         collect(entry.optJSONArray("options"))
                     } else {
-                        val value = entry.optString("value").ifBlank { entry.optString("id") }
+                        val value = entry.text("value").ifBlank { entry.text("id") }
                         if (value.isNotBlank()) {
-                            choices += AcpChoice(value, entry.optString("name").ifBlank { value }, entry.optString("description"))
+                            choices += AcpChoice(value, entry.text("name").ifBlank { value }, entry.text("description"))
                         }
                     }
                 }
             }
             collect(option.optJSONArray("options"))
+            val cleaned = withoutSharedPrefix(choices)
             AcpSetting(
                 id = id,
-                name = option.optString("name").ifBlank { id },
+                name = option.text("name").ifBlank { id },
                 category = option.optString("category"),
                 isToggle = toggle,
-                current = option.opt("currentValue")?.toString().orEmpty(),
-                choices = choices,
+                current = option.text("currentValue"),
+                choices = cleaned,
                 source = AcpSetting.Source.CONFIG_OPTION,
             )
         }
@@ -741,7 +763,7 @@ class AcpClient(
             val option = options.getJSONObject(index)
             AcpPermissionOption(
                 id = option.optString("optionId"),
-                name = option.optString("name"),
+                name = option.text("name"),
                 kind = option.optString("kind"),
             )
         }
@@ -816,7 +838,7 @@ class AcpClient(
             }
 
             "current_mode_update" -> {
-                val modeId = update.optString("currentModeId")
+                val modeId = update.text("currentModeId")
                 if (modeId.isNotBlank()) {
                     _state.update { state ->
                         state.copy(
@@ -831,11 +853,11 @@ class AcpClient(
             "available_commands_update" -> {
                 val list = update.optJSONArray("availableCommands") ?: JSONArray()
                 val commands = List(list.length()) { list.optJSONObject(it) }.filterNotNull().mapNotNull { cmd ->
-                    val name = cmd.optString("name").trim().removePrefix("/")
+                    val name = cmd.text("name").trim().removePrefix("/")
                     if (name.isBlank()) return@mapNotNull null
                     AcpCommand(
                         name = name,
-                        description = cmd.optString("description"),
+                        description = cmd.text("description"),
                         hint = cmd.optJSONObject("input")?.optString("hint").orEmpty(),
                     )
                 }
