@@ -263,12 +263,7 @@ private fun HeaderBar(
             .padding(start = 20.dp, end = 12.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = TermFoldIcons.Terminal,
-            contentDescription = null,
-            tint = Palette.Text,
-            modifier = Modifier.size(26.dp),
-        )
+        com.termfold.app.ui.components.BrandMark(size = 30.dp)
 
         Spacer(Modifier.weight(1f))
 
@@ -338,12 +333,7 @@ fun EmptyState(title: String, hint: String) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = TermFoldIcons.Terminal,
-            contentDescription = null,
-            tint = Palette.TextFaint,
-            modifier = Modifier.size(34.dp),
-        )
+        com.termfold.app.ui.components.BrandMark(size = 44.dp, alpha = 0.5f)
         Spacer(Modifier.height(16.dp))
         Text(
             text = title,

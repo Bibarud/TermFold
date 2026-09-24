@@ -250,3 +250,14 @@ fun RowSpacer() {
     Spacer(Modifier.height(RowSpec.Gap))
 }
 
+
+/** The TermFold logo mark (the folded folder), used wherever the app shows its own brand. */
+@Composable
+fun BrandMark(size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier, alpha: Float = 1f) {
+    Image(
+        painter = androidx.compose.ui.res.painterResource(com.termfold.app.R.drawable.brand_mark),
+        contentDescription = null,
+        alpha = alpha,
+        modifier = modifier.size(size),
+    )
+}

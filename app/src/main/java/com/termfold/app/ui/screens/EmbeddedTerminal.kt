@@ -69,7 +69,7 @@ fun EmbeddedTerminal(
                     // The size must be set first: setTextSize is what creates the view's text
                     // renderer, and setTypeface reads the size back from it (it throws a
                     // NullPointerException otherwise).
-                    setTextSize(fontSizeSp)
+                    setTextSize(spToPx(context, fontSizeSp))
                     val mono = runCatching {
                         context.resources.getFont(com.termfold.app.R.font.jetbrains_mono)
                     }.getOrNull() ?: Typeface.MONOSPACE
@@ -88,7 +88,7 @@ fun EmbeddedTerminal(
                 // re-checked rather than assumed.
                 TerminalHost.currentBridge?.let { view.setTerminalViewClient(it) }
                 TerminalHost.session?.let { view.attachSession(it) }
-                view.setTextSize(fontSizeSp)
+                view.setTextSize(spToPx(view.context, fontSizeSp))
                 TerminalHost.currentView = view
                 onReady(view)
             },
@@ -107,3 +107,14 @@ fun EmbeddedTerminal(
         onDispose { host.onScreenUpdate = null }
     }
 }
+
+/**
+ * `TerminalView.setTextSize` takes pixels, not sp. Passing the sp value straight through made
+ * the text roughly half its intended size on a high-density tablet.
+ */
+private fun spToPx(context: android.content.Context, sp: Int): Int =
+    android.util.TypedValue.applyDimension(
+        android.util.TypedValue.COMPLEX_UNIT_SP,
+        sp.toFloat(),
+        context.resources.displayMetrics,
+    ).toInt().coerceAtLeast(1)

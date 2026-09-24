@@ -668,7 +668,8 @@ private fun toolLabel(item: AcpItem.ToolCall, workspaceDir: String): String {
  */
 private fun tickerText(line: String): String =
     line.trim()
-        .replace(Regex("""^(#{1,6}|[-*+]|\d+[.)]|>|```\S*)\s*"""), "")
+        // Markers need their trailing space, so the "**" of a bold line is not taken for a bullet.
+        .replace(Regex("""^(#{1,6}\s+|[-*+]\s+|\d+[.)]\s+|>\s*|```\S*\s*)"""), "")
         .trim()
 
 /** One line of the thinking ticker; [index] changes only when a new line begins. */

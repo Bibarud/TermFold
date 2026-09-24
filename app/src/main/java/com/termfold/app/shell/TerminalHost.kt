@@ -110,9 +110,9 @@ object TerminalHost : TerminalHostCallbacks {
     var onBackPressed: (() -> Unit)? = null
 
     /** Terminal text sizes, in sp. */
-    const val MIN_FONT_SP = 8
-    const val MAX_FONT_SP = 30
-    const val DEFAULT_FONT_SP = 16
+    const val MIN_FONT_SP = 7
+    const val MAX_FONT_SP = 28
+    const val DEFAULT_FONT_SP = 13
 
     val session: TerminalSession? get() = entries[currentKey]?.session
 

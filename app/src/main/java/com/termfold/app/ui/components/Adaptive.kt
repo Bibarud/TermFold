@@ -90,12 +90,7 @@ fun NavRail(
             .padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = TermFoldIcons.Terminal,
-            contentDescription = null,
-            tint = Palette.Text,
-            modifier = Modifier.size(26.dp),
-        )
+        BrandMark(size = 30.dp)
 
         Spacer(Modifier.height(32.dp))
 

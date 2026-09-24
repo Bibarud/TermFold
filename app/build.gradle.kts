@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -33,12 +35,22 @@ android {
      */
     signingConfigs {
         create("release") {
+            // Credentials come from local.properties (never committed) or the environment, so
+            // the public repository carries no secrets:
+            //   termfold.storePassword=...   / TERMFOLD_STORE_PASSWORD
+            //   termfold.keyPassword=...     / TERMFOLD_KEY_PASSWORD
+            val local = Properties()
+            rootProject.file("local.properties").takeIf { it.isFile }?.inputStream()?.use { stream -> local.load(stream) }
+            fun secret(key: String, env: String): String? =
+                local.getProperty(key) ?: System.getenv(env)
+
             val keystore = rootProject.file("termfold-release.jks")
-            if (keystore.isFile) {
+            val storePass = secret("termfold.storePassword", "TERMFOLD_STORE_PASSWORD")
+            if (keystore.isFile && storePass != null) {
                 storeFile = keystore
-                storePassword = "termfold"
+                storePassword = storePass
                 keyAlias = "termfold"
-                keyPassword = "termfold"
+                keyPassword = secret("termfold.keyPassword", "TERMFOLD_KEY_PASSWORD") ?: storePass
             }
         }
     }
@@ -54,9 +66,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (rootProject.file("termfold-release.jks").isFile) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            signingConfigs.getByName("release").takeIf { it.storeFile != null }?.let { signingConfig = it }
         }
     }
 

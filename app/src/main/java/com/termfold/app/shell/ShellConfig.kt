@@ -41,9 +41,6 @@ object ShellConfig {
     /** PRoot's shared-memory shim, which the sysvipc extension uses. */
     const val NATIVE_SHMEM = "libandroid-shmem.so"
 
-    /** Doubles as the rootfs extractor and as a fallback shell. */
-    const val NATIVE_BUSYBOX = "libbusybox.so"
-
     /** In-guest location a project folder is bind-mounted at when its own name cannot be used. */
     const val WORKSPACE = "/workspace"
 
