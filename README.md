@@ -53,7 +53,7 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 
 ## Install
 
-1. Download `TermFold-release.apk` from the [latest release](https://github.com/Bibarud/TermFold/releases/latest)
+1. Download the `.apk` from the [latest release](https://github.com/Bibarud/TermFold/releases/latest)
    and install it (allow installs from your browser or file manager when asked).
 2. Open TermFold, grant storage access, and tap **+** to pick a project folder.
 3. Open **Shell**. The first time, it sets up Ubuntu for coding (updates, build tools, git,
