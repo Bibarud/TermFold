@@ -86,13 +86,17 @@ import com.termfold.app.ui.screens.TextPromptDialog
 import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : TermFoldActivity() {
 
     private val viewModel: AppViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        // Creating the channels while on screen is what makes Android 13+ ask for the
+        // notification permission.
+        com.termfold.app.notify.Notifier.ensureChannels(this)
+        com.termfold.app.notify.Notifier.placeFrom(intent)?.let(com.termfold.app.notify.AppPresence::request)
 
         setContent {
             TermFoldTheme {
@@ -100,6 +104,35 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        com.termfold.app.notify.Notifier.placeFrom(intent)?.let(com.termfold.app.notify.AppPresence::request)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Back in the full app: the bubble would only be a second copy of it.
+        com.termfold.app.notify.Notifier.cancelBubble(this)
+    }
+
+    /**
+     * The user is leaving for another app (Home, Recents, a gesture), not opening one of ours
+     * like the photo picker. If they were working in a folder or a session, the app floats on as
+     * a bubble that opens right there.
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val place = com.termfold.app.notify.AppPresence.place ?: return
+        com.termfold.app.notify.Notifier.showBubble(this, place, com.termfold.app.notify.AppPresence.label)
+    }
+}
+
+/**
+ * What every TermFold window shares: the physical-keyboard handling. The main window and the
+ * bubble both extend it.
+ */
+open class TermFoldActivity : ComponentActivity() {
 
     /**
      * The first key typed on a physical keyboard puts the on-screen one away: it is covering the
@@ -175,12 +208,43 @@ private sealed interface OptionsTarget {
 }
 
 @Composable
-private fun TermFoldRoot(viewModel: AppViewModel) {
+internal fun TermFoldRoot(viewModel: AppViewModel) {
     val data by viewModel.folders.collectAsStateWithLifecycle()
     val shell by viewModel.shell.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var destination by remember { mutableStateOf<Destination>(Destination.Tabs) }
+
+    // A notification or the bubble asked to show a folder or session.
+    val request by com.termfold.app.notify.AppPresence.requests.collectAsStateWithLifecycle()
+    LaunchedEffect(request, data) {
+        val place = request ?: return@LaunchedEffect
+        val folder = data.folder(place.folderId) ?: return@LaunchedEffect
+        destination = if (place.sessionId != null && folder.sessions.any { it.id == place.sessionId }) {
+            Destination.Terminal(folder.id, place.sessionId)
+        } else {
+            Destination.Folder(folder.id)
+        }
+        com.termfold.app.notify.AppPresence.consume(place)
+    }
+    // Tell the rest of the app where the user is, for notifications and the bubble.
+    LaunchedEffect(destination, data) {
+        val presence = com.termfold.app.notify.AppPresence
+        when (val d = destination) {
+            is Destination.Folder -> {
+                presence.place = com.termfold.app.notify.AppPresence.Place(d.folderId)
+                presence.label = data.folder(d.folderId)?.name.orEmpty()
+            }
+            is Destination.Terminal -> {
+                presence.place = com.termfold.app.notify.AppPresence.Place(d.folderId, d.sessionId)
+                val folder = data.folder(d.folderId)
+                val session = folder?.sessions?.firstOrNull { it.id == d.sessionId }
+                presence.label = listOfNotNull(session?.name, folder?.name).joinToString(" \u00B7 ")
+                com.termfold.app.notify.Notifier.cancelFor(context, "${d.folderId}/${d.sessionId}")
+            }
+            else -> presence.place = null
+        }
+    }
     var filesOpen by rememberSaveable { mutableStateOf(false) }
     var tab by remember { mutableStateOf(NavTab.FOLDERS) }
     var searchOpen by remember { mutableStateOf(false) }

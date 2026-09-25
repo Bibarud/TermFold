@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -41,8 +43,8 @@ import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldIcons
 
 /**
- * Renders the Markdown agents write: headings, paragraphs, lists, quotes, rules, fenced code and
- * the common inline marks. Deliberately small — no HTML, no nested block quotes — because the
+ * Renders the Markdown agents write: headings, paragraphs, lists, quotes, rules, fenced code,
+ * tables and the common inline marks. Deliberately small — no HTML, no nested block quotes — because the
  * text arrives in streamed chunks and has to render sensibly mid-stream, including a code fence
  * whose closing ``` has not arrived yet.
  */
@@ -118,6 +120,8 @@ fun Markdown(
 
                 is MdBlock.Code -> CodeBlock(language = block.language, code = block.code)
 
+                is MdBlock.Table -> MarkdownTable(block, body, color)
+
                 MdBlock.Rule -> Box(
                     Modifier
                         .fillMaxWidth()
@@ -125,6 +129,88 @@ fun Markdown(
                         .height(1.dp)
                         .background(Palette.BorderSoft),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * A GitHub-style table. Every column is as wide as its widest cell (long cells wrap at a cap),
+ * so the columns line up; a table wider than the chat scrolls sideways instead of squashing.
+ */
+@Composable
+private fun MarkdownTable(table: MdBlock.Table, body: androidx.compose.ui.text.TextStyle, color: androidx.compose.ui.graphics.Color) {
+    val columns = table.header.size
+    val cellStyle = body.copy(fontSize = (body.fontSize.value - 1f).coerceAtLeast(11f).sp, lineHeight = 19.sp)
+    val divider = Palette.BorderSoft
+    val maxCell = 300.dp
+    val minCell = 44.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, Palette.Border, RoundedCornerShape(10.dp))
+            .horizontalScroll(rememberScrollState()),
+    ) {
+        androidx.compose.ui.layout.Layout(
+            content = {
+                val rows = listOf(table.header) + table.rows
+                rows.forEachIndexed { r, row ->
+                    for (c in 0 until columns) {
+                        val header = r == 0
+                        val last = r == rows.lastIndex
+                        Box(
+                            Modifier
+                                .background(if (header) Palette.CardPressed else Color.Transparent)
+                                .drawBehind {
+                                    if (!last) {
+                                        drawLine(divider, androidx.compose.ui.geometry.Offset(0f, size.height - 0.5f), androidx.compose.ui.geometry.Offset(size.width, size.height - 0.5f), 1f)
+                                    }
+                                    if (c < columns - 1) {
+                                        drawLine(divider, androidx.compose.ui.geometry.Offset(size.width - 0.5f, 0f), androidx.compose.ui.geometry.Offset(size.width - 0.5f, size.height), 1f)
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 7.dp),
+                        ) {
+                            Text(
+                                text = inline(row.getOrElse(c) { "" }),
+                                style = if (header) cellStyle.copy(fontWeight = FontWeight.SemiBold) else cellStyle,
+                                color = color,
+                                textAlign = when (table.align.getOrNull(c)) {
+                                    MdAlign.CENTER -> androidx.compose.ui.text.style.TextAlign.Center
+                                    MdAlign.RIGHT -> androidx.compose.ui.text.style.TextAlign.End
+                                    else -> androidx.compose.ui.text.style.TextAlign.Start
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+            },
+        ) { measurables, _ ->
+            val rowCount = measurables.size / columns
+            val cap = maxCell.roundToPx()
+            val floor = minCell.roundToPx()
+            val widths = IntArray(columns) { c ->
+                (0 until rowCount).maxOf { r -> measurables[r * columns + c].maxIntrinsicWidth(Int.MAX_VALUE) }
+                    .coerceIn(floor, cap)
+            }
+            val heights = IntArray(rowCount) { r ->
+                (0 until columns).maxOf { c -> measurables[r * columns + c].maxIntrinsicHeight(widths[c]) }
+            }
+            val placeables = measurables.mapIndexed { i, m ->
+                m.measure(androidx.compose.ui.unit.Constraints.fixed(widths[i % columns], heights[i / columns]))
+            }
+            layout(widths.sum(), heights.sum()) {
+                var y = 0
+                for (r in 0 until rowCount) {
+                    var x = 0
+                    for (c in 0 until columns) {
+                        placeables[r * columns + c].place(x, y)
+                        x += widths[c]
+                    }
+                    y += heights[r]
+                }
             }
         }
     }
@@ -179,7 +265,36 @@ internal sealed interface MdBlock {
     data class ListBlock(val ordered: Boolean, val start: Int, val items: List<ListItem>) : MdBlock
     data class Quote(val text: String) : MdBlock
     data class Code(val language: String, val code: String) : MdBlock
+    data class Table(val header: List<String>, val align: List<MdAlign>, val rows: List<List<String>>) : MdBlock
     data object Rule : MdBlock
+}
+
+internal enum class MdAlign { START, CENTER, RIGHT }
+
+/** The line under a table's header: `| --- | :---: | ---: |`, pipes at the edges optional. */
+private val TABLE_SEPARATOR = Regex("^\\s*\\|?\\s*:?-+:?\\s*(\\|\\s*:?-+:?\\s*)*\\|?\\s*$")
+
+/** Splits a table row on its pipes, keeping `\|` and pipes inside `code` as text. */
+internal fun tableCells(line: String): List<String> {
+    var row = line.trim()
+    if (row.startsWith("|")) row = row.drop(1)
+    if (row.endsWith("|") && !row.endsWith("\\|")) row = row.dropLast(1)
+    val cells = mutableListOf<String>()
+    val cell = StringBuilder()
+    var inCode = false
+    var i = 0
+    while (i < row.length) {
+        val ch = row[i]
+        when {
+            ch == '\\' && i + 1 < row.length && row[i + 1] == '|' -> { cell.append('|'); i++ }
+            ch == '`' -> { inCode = !inCode; cell.append(ch) }
+            ch == '|' && !inCode -> { cells += cell.toString().trim(); cell.clear() }
+            else -> cell.append(ch)
+        }
+        i++
+    }
+    cells += cell.toString().trim()
+    return cells
 }
 
 internal data class ListItem(val indent: Int, val text: String)
@@ -189,7 +304,7 @@ private val BULLET = Regex("^(\\s*)[-*+]\\s+(.*)$")
 private val ORDERED = Regex("^(\\s*)(\\d+)[.)]\\s+(.*)$")
 private val RULE = Regex("^\\s*([-*_])(\\s*\\1){2,}\\s*$")
 
-/** Splits Markdown into blocks. Tables and other unknowns stay as their literal lines. */
+/** Splits Markdown into blocks. Anything unrecognised stays as its literal lines. */
 internal fun parseMarkdown(source: String): List<MdBlock> {
     val lines = source.replace("\r\n", "\n").split('\n')
     val blocks = mutableListOf<MdBlock>()
@@ -233,6 +348,33 @@ internal fun parseMarkdown(source: String): List<MdBlock> {
             flushParagraph(); flushList()
             i++
             continue
+        }
+
+        // A table: a row with pipes, then the dashed separator line, then its rows. Until the
+        // separator has streamed in, the header shows as a plain line.
+        if ('|' in line && i + 1 < lines.size && '|' in lines[i + 1] && TABLE_SEPARATOR.matches(lines[i + 1])) {
+            val header = tableCells(line)
+            val align = tableCells(lines[i + 1]).map { spec ->
+                val left = spec.startsWith(":")
+                val right = spec.endsWith(":")
+                when {
+                    left && right -> MdAlign.CENTER
+                    right -> MdAlign.RIGHT
+                    else -> MdAlign.START
+                }
+            }
+            if (header.size >= 1) {
+                flushParagraph(); flushList()
+                val rows = mutableListOf<List<String>>()
+                i += 2
+                while (i < lines.size && lines[i].isNotBlank() && '|' in lines[i]) {
+                    val cells = tableCells(lines[i])
+                    rows += List(header.size) { cells.getOrElse(it) { "" } }
+                    i++
+                }
+                blocks += MdBlock.Table(header, align, rows)
+                continue
+            }
         }
 
         val heading = HEADING.matchEntire(trimmed)

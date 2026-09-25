@@ -137,7 +137,9 @@ class TerminalBridge(
     }
 
     override fun onBell(session: TerminalSession) {
-        // Vibrating on every tab-completion beep would fight the shell for attention.
+        // No vibration: that would fight the shell on every tab-completion beep. The host only
+        // turns a bell into a notification while the app is out of sight.
+        main.post { host.onBell(session) }
     }
 
     override fun onColorsChanged(session: TerminalSession) {

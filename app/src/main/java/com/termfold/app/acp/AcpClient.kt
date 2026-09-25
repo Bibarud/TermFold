@@ -191,6 +191,10 @@ class AcpClient(
     private val _state = MutableStateFlow(AcpUiState())
     val state: StateFlow<AcpUiState> = _state.asStateFlow()
 
+    /** For notifications: who is talking, and in which folder. */
+    val agentName: String get() = agent.name
+    val folderLabel: String get() = workspaceGuestDir.trim('/').ifBlank { workspaceGuestDir }
+
     private val nextId = AtomicLong(1)
     private val pending = ConcurrentHashMap<Long, CompletableDeferred<JSONObject>>()
     private val writeLock = Any()

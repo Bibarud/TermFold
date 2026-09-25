@@ -122,11 +122,14 @@ fun TerminalScreen(
     // them pointing at a Composable that no longer exists.
     DisposableEffect(sessionKey) {
         val host = TerminalHost
-        host.onTap = { requestTerminalFocus(terminalView, keyboard) }
-        host.onBackPressed = { onBack() }
+        val tap = { requestTerminalFocus(terminalView, keyboard) }
+        val back = { onBack() }
+        host.onTap = tap
+        host.onBackPressed = back
         onDispose {
-            host.onTap = null
-            host.onBackPressed = null
+            // The bubble and the main window can both have this screen; only clear our own hooks.
+            if (host.onTap === tap) host.onTap = null
+            if (host.onBackPressed === back) host.onBackPressed = null
             // The keyboard was raised for the terminal, so it leaves with it. Otherwise it stays
             // up over the folder screen and covers half of the session list.
             runCatching { keyboard?.hide() }

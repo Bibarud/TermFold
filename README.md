@@ -41,7 +41,7 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 - **Every popular coding agent.** Run `claude`, `codex`, `gemini`, `opencode`, `pi` or `qwen`
   in the terminal; each installs itself the first time you type it.
 - **Or talk to them natively.** Agents that speak the [Agent Client Protocol](https://agentclientprotocol.com)
-  get a real chat UI: Markdown and code blocks, a live thinking ticker, tool calls with file
+  get a real chat UI: Markdown with code blocks and tables, a live thinking ticker, tool calls with file
   names, plans, permission prompts, slash commands, and a model / reasoning / mode picker.
   Supported out of the box: Claude, Codex, OpenCode, Cursor, Devin, Pi, omp and Google Antigravity.
 - **Your files, next to your work.** A Files button in every folder, chat and shell opens the
@@ -50,6 +50,9 @@ app, proot scripts and broken package installs. TermFold is one app that does it
   changes reload on their own; long-press to delete.
 - **Pick up where you left off.** Chats reopen their last session, and `/resume` (or the history
   button) lists the agent's earlier sessions in that folder to continue any of them.
+- **Keeps working while you're elsewhere.** Leave the app and TermFold floats as an Android
+  bubble that opens right where you were. Agents keep running in the background, and you get a
+  notification when one finishes, needs permission, or a long command in a shell ends.
 - **Built for tablets.** Full-width Ctrl / Alt / Esc / Tab / arrow key rows with repeating
   arrows, physical-keyboard support (the on-screen keyboard steps aside while you type on a real
   one), JetBrains Mono, pinch to zoom.

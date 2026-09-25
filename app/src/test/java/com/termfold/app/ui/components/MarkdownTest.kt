@@ -51,4 +51,21 @@ class MarkdownTest {
         assertEquals(MdBlock.Rule, blocks[1])
         assertEquals(MdBlock.Paragraph("after"), blocks[2])
     }
+
+    @Test
+    fun `tables parse header, alignment and rows`() {
+        val blocks = parseMarkdown("Sizes:\n\n| Name | Size | Note |\n|:---|---:|:---:|\n| a | 1 KB | `x|y` |\n| b \\| c | 2 KB |\n\nafter")
+        val table = blocks[1] as MdBlock.Table
+        assertEquals(listOf("Name", "Size", "Note"), table.header)
+        assertEquals(listOf(MdAlign.START, MdAlign.RIGHT, MdAlign.CENTER), table.align)
+        assertEquals(listOf("a", "1 KB", "`x|y`"), table.rows[0])
+        assertEquals(listOf("b | c", "2 KB", ""), table.rows[1])
+        assertEquals(MdBlock.Paragraph("after"), blocks[2])
+    }
+
+    @Test
+    fun `a table header without its separator yet stays a line`() {
+        val blocks = parseMarkdown("| Name | Size |")
+        assertEquals(MdBlock.Paragraph("| Name | Size |"), blocks.single())
+    }
 }

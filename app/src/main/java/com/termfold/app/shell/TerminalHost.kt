@@ -29,6 +29,9 @@ interface TerminalHostCallbacks {
      * be alive at once: a background one exiting must not be reported as if the visible one had.
      */
     fun onSessionFinished(session: TerminalSession)
+
+    /** The program in [session] rang the terminal bell (CLI agents do this when they need you). */
+    fun onBell(session: TerminalSession)
 }
 
 /**
@@ -117,6 +120,41 @@ object TerminalHost : TerminalHostCallbacks {
     val session: TerminalSession? get() = entries[currentKey]?.session
 
     val currentBridge: TerminalBridge? get() = bridge
+
+    /** A stored shell as the notification watcher sees it. */
+    data class LiveSession(
+        val key: String,
+        val title: String,
+        val folderLabel: String,
+        val running: Boolean,
+        val working: Boolean,
+    )
+
+    fun liveSessions(): List<LiveSession> = entries.map { (key, entry) ->
+        LiveSession(
+            key = key,
+            title = entry.spec.title,
+            folderLabel = entry.spec.workspace?.substringAfterLast('/').orEmpty(),
+            running = entry.session.isRunning,
+            working = entry.session.isRunning && entry.bridge.isWorking,
+        )
+    }
+
+    /**
+     * The window that owns the terminal display. The main window and the bubble can both have a
+     * terminal screen composed, but only one of them is on screen; the one that resumes last
+     * claims the display so the output is drawn where the user is looking.
+     */
+    @Volatile
+    var displayOwner: Any? = null
+        private set
+
+    fun claimDisplay(owner: Any) {
+        if (displayOwner === owner) return
+        displayOwner = owner
+        // Recreates the terminal views, and only the owner's registers itself as currentView.
+        _generation.value += 1
+    }
 
     /** Whether the stored session for [key] is running something right now (see TerminalBridge). */
     fun isWorking(key: String): Boolean {
@@ -276,6 +314,14 @@ object TerminalHost : TerminalHostCallbacks {
 
     override fun onBackPressed() {
         onBackPressed?.invoke()
+    }
+
+    /** Set by the app so the bell can reach the notification watcher without a dependency cycle. */
+    var onBellRung: ((key: String, title: String) -> Unit)? = null
+
+    override fun onBell(session: TerminalSession) {
+        val (key, entry) = entries.entries.firstOrNull { it.value.session === session }?.toPair() ?: return
+        onBellRung?.invoke(key, entry.spec.title)
     }
 
     override fun onSessionFinished(session: TerminalSession) {

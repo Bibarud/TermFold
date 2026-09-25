@@ -13,6 +13,9 @@ object AcpSessions {
 
     fun client(key: String): AcpClient? = clients[key]
 
+    /** Every live agent chat, keyed like [TerminalHost] sessions ("folderId/sessionId"). */
+    fun all(): Map<String, AcpClient> = HashMap(clients)
+
     fun put(key: String, client: AcpClient): AcpClient {
         clients[key] = client
         return client

@@ -1048,17 +1048,17 @@ private fun PermissionDialog(
                     Spacer(Modifier.height(14.dp))
                 }
                 pending.options.forEach { option ->
-                    val allow = option.kind.startsWith("allow")
+                    // Every option reads in white; only "allow once" is filled, as the default.
                     Text(
                         text = option.name,
                         style = MaterialTheme.typography.labelLarge,
-                        color = if (allow) Palette.OnAccent else Palette.Text,
+                        color = Color.White,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 3.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .then(
-                                if (allow && option.kind == "allow_once") {
+                                if (option.kind == "allow_once") {
                                     Modifier.background(Palette.Accent)
                                 } else {
                                     Modifier.border(1.dp, Palette.Border, RoundedCornerShape(12.dp))

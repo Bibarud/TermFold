@@ -46,6 +46,18 @@ fun EmbeddedTerminal(
     onReady: (TerminalView) -> Unit = {},
 ) {
     val generation by TerminalHost.generation.collectAsStateWithLifecycle()
+    // The window this terminal is in. The main window and the bubble can both show a terminal;
+    // whichever is resumed claims the display (see TerminalHost.claimDisplay).
+    val owner = androidx.compose.ui.platform.LocalContext.current.findActivity()
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, owner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && owner != null) TerminalHost.claimDisplay(owner)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    fun ownsDisplay() = TerminalHost.displayOwner == null || TerminalHost.displayOwner === owner
 
     // Recreating the view on a generation change is what lets a new session be displayed: an
     // existing view cannot be repointed at a different session reliably.
@@ -79,7 +91,7 @@ fun EmbeddedTerminal(
 
                     TerminalHost.currentBridge?.let { setTerminalViewClient(it) }
                     TerminalHost.session?.let { attachSession(it) }
-                    TerminalHost.currentView = this
+                    if (ownsDisplay()) TerminalHost.currentView = this
                     onReady(this)
                 }
             },
@@ -89,7 +101,7 @@ fun EmbeddedTerminal(
                 TerminalHost.currentBridge?.let { view.setTerminalViewClient(it) }
                 TerminalHost.session?.let { view.attachSession(it) }
                 view.setTextSize(spToPx(view.context, fontSizeSp))
-                TerminalHost.currentView = view
+                if (ownsDisplay()) TerminalHost.currentView = view
                 onReady(view)
             },
         )
@@ -101,10 +113,10 @@ fun EmbeddedTerminal(
     // on dispose so a detached terminal is never asked to draw.
     DisposableEffect(generation) {
         val host = TerminalHost
-        host.onScreenUpdate = {
-            host.currentView?.onScreenUpdated()
-        }
-        onDispose { host.onScreenUpdate = null }
+        val hook = { host.currentView?.onScreenUpdated() ?: Unit }
+        host.onScreenUpdate = hook
+        // The other window may have registered its own hook since; leave that one alone.
+        onDispose { if (host.onScreenUpdate === hook) host.onScreenUpdate = null }
     }
 }
 
@@ -112,6 +124,15 @@ fun EmbeddedTerminal(
  * `TerminalView.setTextSize` takes pixels, not sp. Passing the sp value straight through made
  * the text roughly half its intended size on a high-density tablet.
  */
+private fun android.content.Context.findActivity(): android.app.Activity? {
+    var c: android.content.Context? = this
+    while (c is android.content.ContextWrapper) {
+        if (c is android.app.Activity) return c
+        c = c.baseContext
+    }
+    return null
+}
+
 private fun spToPx(context: android.content.Context, sp: Int): Int =
     android.util.TypedValue.applyDimension(
         android.util.TypedValue.COMPLEX_UNIT_SP,
