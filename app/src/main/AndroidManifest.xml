@@ -17,6 +17,10 @@
          running while the user is in other apps. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Lets the user exempt TermFold from battery optimisation from inside the app (the
+         system asks them to confirm), so long agent runs are not cut off by the OEM's
+         background killer. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".TermFoldApp"

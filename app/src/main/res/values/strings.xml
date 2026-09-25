@@ -101,6 +101,11 @@
     <string name="settings_notify_desc">An alert when an agent finishes or needs permission, or a long command in a shell ends.</string>
     <string name="settings_notify_blocked">Notifications are turned off for TermFold.</string>
     <string name="settings_notify_allow">Turn on</string>
+    <string name="settings_battery">Run without battery limits</string>
+    <string name="settings_battery_desc">Stops Android from pausing or closing TermFold while agents work in the background. Recommended on Lenovo, Xiaomi, Samsung and similar.</string>
+    <string name="settings_battery_on">TermFold is exempt from battery optimisation.</string>
+    <string name="settings_battery_off">Android may still pause TermFold when the screen is off.</string>
+    <string name="settings_battery_allow">Allow</string>
     <string name="files_delete">Delete</string>
     <string name="files_delete_title">Delete %1$s?</string>
     <string name="files_delete_folder_title">Delete the folder %1$s?</string>

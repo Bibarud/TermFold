@@ -150,12 +150,14 @@ private fun BackgroundCard() {
     // Re-read what Android allows whenever the user comes back from its settings.
     var bubblesAllowed by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(notifier.bubblesAllowed(context)) }
     var canNotify by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(notifier.canNotify(context)) }
+    var unrestricted by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(ignoresBatteryLimits(context)) }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 bubblesAllowed = notifier.bubblesAllowed(context)
                 canNotify = notifier.canNotify(context)
+                unrestricted = ignoresBatteryLimits(context)
             }
         }
         lifecycle.lifecycle.addObserver(observer)
@@ -197,8 +199,34 @@ private fun BackgroundCard() {
             actionLabel = stringResource(R.string.settings_notify_allow),
             onAction = { runCatching { context.startActivity(notificationSettings(context)) } },
         )
+        HairlineDivider()
+        // Android owns this switch: the row shows its state and opens the system's own dialog.
+        SwitchRow(
+            title = stringResource(R.string.settings_battery),
+            body = stringResource(R.string.settings_battery_desc),
+            checked = unrestricted,
+            onChange = { runCatching { context.startActivity(batteryIntent(context, it)) } },
+            warning = if (!unrestricted) stringResource(R.string.settings_battery_off) else null,
+            actionLabel = stringResource(R.string.settings_battery_allow),
+            onAction = { runCatching { context.startActivity(batteryIntent(context, true)) } },
+        )
     }
 }
+
+private fun ignoresBatteryLimits(context: android.content.Context): Boolean {
+    val power = context.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+    return power?.isIgnoringBatteryOptimizations(context.packageName) == true
+}
+
+/** Asking for the exemption shows a one-tap system dialog; taking it back needs the list screen. */
+@android.annotation.SuppressLint("BatteryLife")
+private fun batteryIntent(context: android.content.Context, exempt: Boolean) =
+    if (exempt) {
+        android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+            .setData(android.net.Uri.parse("package:" + context.packageName))
+    } else {
+        android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+    }.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
 
 private fun notificationSettings(context: android.content.Context) =
     android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
