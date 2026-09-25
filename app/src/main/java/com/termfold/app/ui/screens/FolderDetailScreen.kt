@@ -54,6 +54,8 @@ fun FolderDetailScreen(
     onOpenOptions: (String?) -> Unit,
     modifier: Modifier = Modifier,
     wide: Boolean = false,
+    filesOpen: Boolean = false,
+    onToggleFiles: () -> Unit = {},
 ) {
     val edge = if (wide) 30.dp else 22.dp
 
@@ -100,6 +102,7 @@ fun FolderDetailScreen(
                 onClick = onBack,
             )
             Spacer(Modifier.weight(1f))
+            FilesButton(open = filesOpen, onClick = onToggleFiles)
             BareIconButton(
                 icon = TermFoldIcons.More,
                 contentDescription = stringResource(R.string.cd_more),

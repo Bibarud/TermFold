@@ -44,6 +44,12 @@ app, proot scripts and broken package installs. TermFold is one app that does it
   get a real chat UI: Markdown and code blocks, a live thinking ticker, tool calls with file
   names, plans, permission prompts, slash commands, and a model / reasoning / mode picker.
   Supported out of the box: Claude, Codex, OpenCode, Cursor, Devin, Pi, omp and Google Antigravity.
+- **Your files, next to your work.** A Files button in every folder, chat and shell opens the
+  project's file tree (with VS Code's file icons). Tap a file to open it in a code editor
+  (CodeMirror: syntax highlighting for 40+ languages, search, undo, Ctrl+S). Files an agent
+  changes reload on their own; long-press to delete.
+- **Pick up where you left off.** Chats reopen their last session, and `/resume` (or the history
+  button) lists the agent's earlier sessions in that folder to continue any of them.
 - **Built for tablets.** Full-width Ctrl / Alt / Esc / Tab / arrow key rows with repeating
   arrows, physical-keyboard support (the on-screen keyboard steps aside while you type on a real
   one), JetBrains Mono, pinch to zoom.
@@ -102,6 +108,8 @@ Tests: `./gradlew :app:testDebugUnitTest`.
 Other tools:
 - `tools/make-icons.py` regenerates the launcher icon from `tools/brand/logo-source.png`
 - `tools/build-procfd-shim.py` rebuilds the small `LD_PRELOAD` helper some agents need (needs `pip install ziglang`)
+- `tools/editor/` is the code editor's source (`npm install && npm run build` writes `assets/editor/editor.js`)
+- `tools/make-file-icons.py` bundles the file tree's icons from the `material-icon-theme` npm package
 - `tools/promo/` renders the promo video and its original soundtrack
 
 ## Limits

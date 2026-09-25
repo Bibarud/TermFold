@@ -335,4 +335,77 @@ object TermFoldIcons {
             width = 1.8f,
         )
     }
+
+    /** A clock inside a turning arrow: earlier sessions. */
+    val History: ImageVector by lazy {
+        stroked(
+            "History",
+            "M4.6,12 A7.4,7.4 0 1,0 6.8,6.8",
+            "M4.2,4.6 L4.4,7.6 L7.4,7.4",
+            "M12,8.2 L12,12.3 L14.8,14",
+        )
+    }
+
+    /** A folder with a branch: the project's file tree. */
+    val Files: ImageVector by lazy {
+        stroked(
+            "Files",
+            "M3.8,6.6 C3.8,5.6 4.6,4.8 5.6,4.8 H9 L10.8,6.8 H18.4 C19.4,6.8 20.2,7.6 20.2,8.6 V17.4 " +
+                "C20.2,18.4 19.4,19.2 18.4,19.2 H5.6 C4.6,19.2 3.8,18.4 3.8,17.4 Z",
+            "M8,11 V15.4 H12.4",
+            "M8,13 H12.4",
+        )
+    }
+
+    /** A disk: save. */
+    val Save: ImageVector by lazy {
+        stroked(
+            "Save",
+            "M5.6,4.4 H15.6 L19.6,8.4 V18.4 C19.6,19.08 19.08,19.6 18.4,19.6 H5.6 C4.92,19.6 4.4,19.08 4.4,18.4 V5.6 " +
+                "C4.4,4.92 4.92,4.4 5.6,4.4 Z",
+            "M8,4.6 V8.6 H14.4 V4.6",
+            "M8,19.4 V14 H16 V19.4",
+        )
+    }
+
+    /** Lines folding back: soft wrap. */
+    val Wrap: ImageVector by lazy {
+        stroked(
+            "Wrap",
+            "M4.5,6.5 H19.5",
+            "M4.5,12 H16.5 C18.2,12 19.5,13.3 19.5,15 C19.5,16.7 18.2,18 16.5,18 H12.5",
+            "M14.3,16 L12.3,18 L14.3,20",
+            "M4.5,18 H8.5",
+        )
+    }
+
+    /** An arrow curling back: undo. */
+    val Undo: ImageVector by lazy {
+        stroked(
+            "Undo",
+            "M8.5,5.5 L4.5,9.5 L8.5,13.5",
+            "M4.5,9.5 H14.5 C17.3,9.5 19.5,11.7 19.5,14.5 C19.5,17.3 17.3,19.5 14.5,19.5 H10.5",
+        )
+    }
+
+    /** An arrow curling forward: redo. */
+    val Redo: ImageVector by lazy {
+        stroked(
+            "Redo",
+            "M15.5,5.5 L19.5,9.5 L15.5,13.5",
+            "M19.5,9.5 H9.5 C6.7,9.5 4.5,11.7 4.5,14.5 C4.5,17.3 6.7,19.5 9.5,19.5 H13.5",
+        )
+    }
+
+    /** A bin: delete. */
+    val Trash: ImageVector by lazy {
+        stroked(
+            "Trash",
+            "M4.5,7 H19.5",
+            "M9.5,7 V5.2 C9.5,4.8 9.8,4.5 10.2,4.5 H13.8 C14.2,4.5 14.5,4.8 14.5,5.2 V7",
+            "M6.5,7 L7.3,18.6 C7.4,19.2 7.9,19.5 8.5,19.5 H15.5 C16.1,19.5 16.6,19.2 16.7,18.6 L17.5,7",
+            "M10.3,10.5 V16",
+            "M13.7,10.5 V16",
+        )
+    }
 }

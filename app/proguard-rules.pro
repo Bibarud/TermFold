@@ -23,3 +23,9 @@
 # The terminal's colour table is a public static that the emulator reads reflectively.
 -keep class com.termux.terminal.TerminalColors { *; }
 -keep class com.termux.terminal.TerminalColorScheme { *; }
+
+# The file editor's page calls back into these through addJavascriptInterface.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keepattributes JavascriptInterface

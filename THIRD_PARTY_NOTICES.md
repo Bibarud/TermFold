@@ -24,6 +24,8 @@ it does not link against it.
 | --- | --- | --- |
 | Ubuntu 24.04.5 base image (`ubuntu-*.bin`) | Various free licenses (see `/usr/share/doc/*/copyright` inside the image) | [cdimage.ubuntu.com/ubuntu-base](https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/); package sources at [launchpad.net/ubuntu](https://launchpad.net/ubuntu) |
 | Mozilla CA certificate bundle (`ca-certificates.crt`) | MPL-2.0 | Ubuntu's [`ca-certificates`](https://launchpad.net/ubuntu/+source/ca-certificates) package |
+| CodeMirror 6 and its language packages (`editor/editor.js`, built from `tools/editor/`) | MIT | [codemirror.net](https://codemirror.net) |
+| Material Icon Theme file and folder icons (`fileicons/`) | MIT (`fileicons/LICENSE`) | [material-extensions/vscode-material-icon-theme](https://github.com/material-extensions/vscode-material-icon-theme) |
 
 Ubuntu is a registered trademark of Canonical Ltd. TermFold is not affiliated with or endorsed by
 Canonical.

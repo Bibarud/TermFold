@@ -118,6 +118,14 @@ data class AcpSetting(
 
 data class AcpChoice(val value: String, val name: String, val description: String = "")
 
+/** An earlier conversation the agent can reopen (from `session/list`). */
+data class AcpPastSession(
+    val sessionId: String,
+    val title: String,
+    /** ISO-8601 as the agent reported it, or empty. */
+    val updatedAt: String,
+)
+
 data class AcpPendingPermission(
     /** The agent's JSON-RPC id, echoed back verbatim: a number or a string. */
     val requestId: Any,
@@ -143,6 +151,10 @@ data class AcpUiState(
     val commands: List<AcpCommand> = emptyList(),
     /** Model, reasoning level, mode and other options the agent offers for this session. */
     val settings: List<AcpSetting> = emptyList(),
+    /** The agent can list its earlier sessions and reopen one (`session/list` + load/resume). */
+    val canResumeSessions: Boolean = false,
+    /** True while an earlier session is being reopened and its history replayed. */
+    val restoring: Boolean = false,
 )
 
 /**
@@ -191,6 +203,9 @@ class AcpClient(
 
     @Volatile
     private var agentSessionId: String? = null
+
+    /** The agent session this chat is in, once one is open. */
+    val currentSessionId: String? get() = agentSessionId
 
     @Volatile
     private var closedByUser = false
@@ -332,16 +347,130 @@ class AcpClient(
             ?.optJSONArray("authMethods")
             ?.let { methods -> List(methods.length()) { methods.getJSONObject(it).optString("name") } }
             ?: emptyList()
-        val prompt = result?.optJSONObject("agentCapabilities")?.optJSONObject("promptCapabilities")
+        val capabilities = result?.optJSONObject("agentCapabilities")
+        val prompt = capabilities?.optJSONObject("promptCapabilities")
+        val sessionCaps = capabilities?.optJSONObject("sessionCapabilities")
+        canLoad = capabilities?.optBoolean("loadSession") == true
+        canResume = sessionCaps?.has("resume") == true
+        canList = sessionCaps?.has("list") == true
         _state.update {
             it.copy(
                 authMethods = authMethods,
                 acceptsImages = prompt?.optBoolean("image") == true,
                 acceptsEmbeddedContext = prompt?.optBoolean("embeddedContext") == true,
+                canResumeSessions = canList && (canLoad || canResume),
             )
         }
 
+        // Pick up where the user left off: reopening this chat, even after the app restarted,
+        // continues the same agent session rather than starting an empty one.
+        val remembered = rememberedSessionId()
+        if (remembered != null && (canLoad || canResume) && reopen(remembered, replay = true)) return
         openSession()
+    }
+
+    @Volatile private var canLoad = false
+    @Volatile private var canResume = false
+    @Volatile private var canList = false
+
+    private val prefs get() = context.getSharedPreferences("acp_sessions", Context.MODE_PRIVATE)
+
+    /** The agent session this chat last used, so it can be reopened next time. */
+    private fun rememberedSessionId(): String? = prefs.getString(sessionKey, null)
+
+    private fun rememberSession(id: String) {
+        prefs.edit().putString(sessionKey, id).apply()
+    }
+
+    /**
+     * The agent's earlier sessions for this folder, newest first as the agent orders them.
+     * Pages through `session/list` up to a sane cap.
+     */
+    suspend fun listPastSessions(): List<AcpPastSession> = withContext(Dispatchers.IO) {
+        if (!canList) return@withContext emptyList()
+        val found = mutableListOf<AcpPastSession>()
+        var cursor: String? = null
+        for (page in 0 until 4) {
+            val params = JSONObject().put("cwd", workspaceGuestDir)
+            cursor?.let { params.put("cursor", it) }
+            val result = runCatching { request("session/list", params) }.getOrNull()?.optJSONObject("result") ?: break
+            val list = result.optJSONArray("sessions") ?: JSONArray()
+            for (i in 0 until list.length()) {
+                val entry = list.optJSONObject(i) ?: continue
+                val id = entry.text("sessionId")
+                if (id.isNotBlank()) found += AcpPastSession(id, entry.text("title"), entry.text("updatedAt"))
+            }
+            cursor = result.text("nextCursor").ifBlank { null } ?: break
+        }
+        found.distinctBy { it.sessionId }
+    }
+
+    /** Reopens an earlier session chosen by the user, replacing the current conversation. */
+    fun openPastSession(sessionId: String) {
+        if (sessionId == agentSessionId) return
+        scope.launch {
+            if (!reopen(sessionId, replay = true)) {
+                appendSystemError("That session could not be reopened.")
+            }
+        }
+    }
+
+    /** Leaves the current conversation and starts an empty one with the same agent. */
+    fun startNewSession() {
+        scope.launch {
+            agentSessionId = null
+            _state.update { it.copy(items = emptyList(), agentBusy = false, pendingPermission = null) }
+            openSession()
+        }
+    }
+
+    /**
+     * Opens [sessionId] with `session/load` (the agent replays the conversation, which renders
+     * as it arrives) or, when the agent can only resume, `session/resume` (no history). Returns
+     * false if the agent refused, leaving the current state as it was.
+     */
+    private fun reopen(sessionId: String, replay: Boolean): Boolean {
+        val method = if (canLoad) "session/load" else if (canResume) "session/resume" else return false
+        val previousItems = _state.value.items
+        val previousId = agentSessionId
+        // Replayed updates are addressed to this session; accept them from the start.
+        agentSessionId = sessionId
+        _state.update { it.copy(items = if (replay) emptyList() else it.items, restoring = true) }
+        val response = runCatching {
+            request(
+                method,
+                JSONObject()
+                    .put("sessionId", sessionId)
+                    .put("cwd", workspaceGuestDir)
+                    .put("mcpServers", JSONArray()),
+                timeoutMs = 120_000,
+            )
+        }.getOrNull()
+        if (response == null || response.has("error")) {
+            agentSessionId = previousId
+            _state.update { it.copy(items = previousItems, restoring = false) }
+            Log.w(TAG, "$method failed: ${response?.optJSONObject("error")}")
+            return false
+        }
+        val result = response.optJSONObject("result")
+        val settings = parseSettings(result)
+        rememberSession(sessionId)
+        _state.update { state ->
+            state.copy(
+                phase = AcpPhase.READY,
+                statusText = "",
+                restoring = false,
+                agentBusy = false,
+                // load/resume may not repeat the options; keep what we had rather than blanking.
+                settings = settings.ifEmpty { state.settings },
+                items = if (method == "session/resume" && state.items.isEmpty()) {
+                    listOf(AcpItem.Notice(nextItemId(), "Resumed an earlier session. This agent does not send its history, but it remembers the conversation."))
+                } else {
+                    state.items
+                },
+            )
+        }
+        return true
     }
 
     private suspend fun openSession() {
@@ -376,6 +505,7 @@ class AcpClient(
             return
         }
         agentSessionId = sessionId
+        rememberSession(sessionId)
         val settings = parseSettings(response.optJSONObject("result"))
         _state.update { it.copy(phase = AcpPhase.READY, statusText = "", settings = settings) }
     }
@@ -790,6 +920,16 @@ class AcpClient(
                 }
             }
 
+            "user_message_chunk" -> blocks(update.opt("content")).forEach { block ->
+                when (block) {
+                    is AcpBlock.Text -> appendUserText(block.text)
+                    is AcpBlock.Image -> _state.update { state ->
+                        state.copy(items = state.items + AcpItem.UserMessage(nextItemId(), "", listOf(block)))
+                    }
+                    is AcpBlock.TextFile -> Unit
+                }
+            }
+
             "agent_thought_chunk" -> blocks(update.opt("content")).forEach { block ->
                 if (block is AcpBlock.Text) appendText(block.text, asThought = true)
             }
@@ -906,6 +1046,26 @@ class AcpClient(
                 items.add(AcpItem.Thought(nextItemId(), text))
             } else {
                 items.add(AcpItem.AgentText(nextItemId(), text))
+            }
+            state.copy(items = items)
+        }
+    }
+
+    /**
+     * A user message chunk. These arrive when an earlier session is replayed; consecutive
+     * chunks join one bubble. A live echo of the prompt just sent is skipped, since the
+     * composer already added it.
+     */
+    private fun appendUserText(text: String) {
+        if (text.isEmpty()) return
+        _state.update { state ->
+            val items = state.items.toMutableList()
+            val last = items.lastOrNull()
+            if (!state.restoring && last is AcpItem.UserMessage && last.text.trim() == text.trim()) return@update state
+            if (last is AcpItem.UserMessage && state.restoring && last.images.isEmpty() && last.files.isEmpty()) {
+                items[items.lastIndex] = last.copy(text = last.text + text)
+            } else {
+                items += AcpItem.UserMessage(nextItemId(), text, emptyList())
             }
             state.copy(items = items)
         }

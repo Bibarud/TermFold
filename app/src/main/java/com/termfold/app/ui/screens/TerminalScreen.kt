@@ -71,6 +71,8 @@ fun TerminalScreen(
     onRestart: () -> Unit,
     modifier: Modifier = Modifier,
     wide: Boolean = false,
+    filesOpen: Boolean = false,
+    onToggleFiles: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val exited by TerminalHost.exited.collectAsStateWithLifecycle()
@@ -148,6 +150,8 @@ fun TerminalScreen(
             title = liveTitle.ifBlank { sessionName },
             subtitle = folder.name,
             exited = exited,
+            filesOpen = filesOpen,
+            onToggleFiles = onToggleFiles,
             onBack = onBack,
             onRestart = onRestart,
             onFontSize = { steps -> TerminalHost.onFontStep(steps) },
@@ -215,9 +219,12 @@ fun TerminalScreen(
 
 /** Header: current folder, live terminal title, and the state of the shell. */
 @Composable
-private fun TerminalHeader(    title: String,
+private fun TerminalHeader(
+    title: String,
     subtitle: String,
     exited: Boolean,
+    filesOpen: Boolean,
+    onToggleFiles: () -> Unit,
     onBack: () -> Unit,
     onRestart: () -> Unit,
     onFontSize: (Int) -> Unit,
@@ -252,6 +259,8 @@ private fun TerminalHeader(    title: String,
                 maxLines = 1,
             )
         }
+        FilesButton(open = filesOpen, onClick = onToggleFiles)
+        Spacer(Modifier.size(4.dp))
         PillButton(
             label = "\u2212",
             onClick = { onFontSize(-1) },

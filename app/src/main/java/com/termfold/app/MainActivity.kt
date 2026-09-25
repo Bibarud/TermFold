@@ -54,6 +54,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -72,6 +73,7 @@ import com.termfold.app.ui.components.GlowScaffold
 import com.termfold.app.ui.components.NavTab
 import com.termfold.app.ui.screens.AgentSessionScreen
 import com.termfold.app.ui.screens.ConfirmDialog
+import com.termfold.app.ui.screens.FilesWorkspace
 import com.termfold.app.ui.screens.FolderDetailScreen
 import com.termfold.app.ui.screens.FoldersScreen
 import com.termfold.app.ui.screens.OptionsSheet
@@ -179,6 +181,7 @@ private fun TermFoldRoot(viewModel: AppViewModel) {
     val context = LocalContext.current
 
     var destination by remember { mutableStateOf<Destination>(Destination.Tabs) }
+    var filesOpen by rememberSaveable { mutableStateOf(false) }
     var tab by remember { mutableStateOf(NavTab.FOLDERS) }
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -270,7 +273,24 @@ private fun TermFoldRoot(viewModel: AppViewModel) {
                     },
                 )
             }
+            // The folder being worked in, if any: its files can be shown beside the folder view,
+            // a chat or a shell (not on the home screen).
+            val workspaceFolder = when (val d = destination) {
+                is Destination.Folder -> data.folder(d.folderId)
+                is Destination.Terminal -> data.folder(d.folderId)
+                else -> null
+            }
+            // A phone's drawer closes when the screen changes; a tablet keeps the tree docked.
+            LaunchedEffect(destination, windowWidth.isWide) {
+                if (!windowWidth.isWide) filesOpen = false
+            }
             Box(modifier = Modifier.weight(1f)) {
+              FilesWorkspace(
+                folder = workspaceFolder,
+                filesOpen = filesOpen,
+                onCloseFiles = { filesOpen = false },
+                wide = windowWidth.isWide,
+              ) {
                 AnimatedContent(
                     targetState = destination,
                     transitionSpec = directionalTransition { it.depth() },
@@ -345,6 +365,8 @@ private fun TermFoldRoot(viewModel: AppViewModel) {
                                 )
                             ),
                             onBack = { destination = Destination.Tabs },
+                            filesOpen = filesOpen,
+                            onToggleFiles = { filesOpen = !filesOpen },
                             onOpenSession = { sessionId ->
                                 destination = Destination.Terminal(folder.id, sessionId)
                             },
@@ -380,6 +402,8 @@ private fun TermFoldRoot(viewModel: AppViewModel) {
                                 )
                             ),
                             onBack = { destination = Destination.Folder(folder.id) },
+                            filesOpen = filesOpen,
+                            onToggleFiles = { filesOpen = !filesOpen },
                         )
                     } else {
                         BackHandler { destination = Destination.Folder(folder.id) }
@@ -396,11 +420,14 @@ private fun TermFoldRoot(viewModel: AppViewModel) {
                             ),
                             onBack = { destination = Destination.Folder(folder.id) },
                             onRestart = { TerminalHost.restart(context) },
+                            filesOpen = filesOpen,
+                            onToggleFiles = { filesOpen = !filesOpen },
                         )
                     }
                 }
                     }
                 }
+              }
             }
         }
     }

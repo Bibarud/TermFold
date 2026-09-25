@@ -134,6 +134,8 @@ fun AgentSessionScreen(
     agentId: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    filesOpen: Boolean = false,
+    onToggleFiles: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val key = TerminalHost.sessionKey(folder.id, sessionId)
@@ -184,6 +186,7 @@ fun AgentSessionScreen(
     LaunchedEffect(agentId) { client.start() }
 
     val state by client.state.collectAsStateWithLifecycle()
+    var showHistory by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -196,6 +199,13 @@ fun AgentSessionScreen(
             iconUrl = resolved.iconUrl,
             onBack = onBack,
             live = state.agentBusy,
+            filesOpen = filesOpen,
+            onToggleFiles = onToggleFiles,
+            onHistory = if (state.canResumeSessions && state.phase == AcpPhase.READY) {
+                { showHistory = true }
+            } else {
+                null
+            },
             onRestart = if (state.phase == AcpPhase.READY || state.phase == AcpPhase.ERROR) {
                 { client.restart() }
             } else {
@@ -204,7 +214,7 @@ fun AgentSessionScreen(
         )
 
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-            val hasConversation = state.items.isNotEmpty()
+            val hasConversation = state.items.isNotEmpty() || state.restoring
             when {
                 // Once there is a conversation it stays on screen; a restart or failure shows as a
                 // slim banner above it rather than replacing what the user was reading.
@@ -287,12 +297,19 @@ fun AgentSessionScreen(
                 agentName = resolved.name,
                 agentBusy = state.agentBusy,
                 commands = state.commands,
+                canResume = state.canResumeSessions,
+                onResume = { showHistory = true },
+                onNewSession = { client.startNewSession() },
                 settings = state.settings,
                 onChangeSetting = { setting, value -> client.changeSetting(setting, value) },
                 onSend = { text, images, files -> client.send(text, images, files) },
                 onCancel = { client.cancel() },
             )
         }
+    }
+
+    if (showHistory) {
+        PastSessionsDialog(client = client, currentId = client.currentSessionId, onDismiss = { showHistory = false })
     }
 
     state.pendingPermission?.let { pending ->
@@ -324,6 +341,9 @@ private fun SessionHeader(
     iconUrl: String,
     onBack: () -> Unit,
     live: Boolean = false,
+    filesOpen: Boolean = false,
+    onToggleFiles: (() -> Unit)? = null,
+    onHistory: (() -> Unit)? = null,
     onRestart: (() -> Unit)? = null,
 ) {
     Column {
@@ -371,6 +391,16 @@ private fun SessionHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            if (onToggleFiles != null) FilesButton(open = filesOpen, onClick = onToggleFiles)
+            if (onHistory != null) {
+                BareIconButton(
+                    icon = TermFoldIcons.History,
+                    contentDescription = stringResource(R.string.acp_history),
+                    onClick = onHistory,
+                    tint = Palette.TextDim,
+                    size = 40,
+                )
+            }
             if (onRestart != null) {
                 BareIconButton(
                     icon = TermFoldIcons.Refresh,
@@ -408,7 +438,12 @@ private fun PhaseBanner(state: AcpUiState, onRetry: () -> Unit) {
             text = stringResource(R.string.acp_auth_required)
             loading = false
         }
-        else -> return
+        else -> if (state.restoring) {
+            text = stringResource(R.string.acp_restoring)
+            loading = true
+        } else {
+            return
+        }
     }
     Row(
         modifier = Modifier
@@ -1054,6 +1089,9 @@ private fun Composer(
     agentName: String,
     agentBusy: Boolean,
     commands: List<AcpCommand>,
+    canResume: Boolean,
+    onResume: () -> Unit,
+    onNewSession: () -> Unit,
     settings: List<AcpSetting>,
     onChangeSetting: (AcpSetting, String) -> Unit,
     onSend: (String, List<AcpBlock.Image>, List<AcpBlock.TextFile>) -> Unit,
@@ -1086,16 +1124,33 @@ private fun Composer(
     val canSend = input.text.isNotBlank() || images.isNotEmpty() || files.isNotEmpty()
 
     // The slash menu: open while the text is "/" plus a partial command name, and nothing else.
+    // The app's own commands come first (resuming is the app's job, not every agent's), then
+    // whatever the agent published.
+    val builtIns = buildList {
+        if (canResume) add(AcpCommand(BUILTIN_RESUME, stringResource(R.string.acp_cmd_resume), ""))
+        add(AcpCommand(BUILTIN_NEW, stringResource(R.string.acp_cmd_new), ""))
+    }
+    val allCommands = builtIns + commands.filter { c -> builtIns.none { it.name == c.name } }
     val typed = input.text.toString()
-    val slashMatches = if (typed.startsWith("/") && typed.none { it.isWhitespace() } && commands.isNotEmpty()) {
+    // Esc closes the menu until the text changes again.
+    var dismissedFor by remember { mutableStateOf<String?>(null) }
+    val slashMatches = if (typed.startsWith("/") && typed.none { it.isWhitespace() } && dismissedFor != typed) {
         val query = typed.drop(1).lowercase()
-        commands.filter { it.name.lowercase().startsWith(query) } +
-            commands.filter { !it.name.lowercase().startsWith(query) && it.name.lowercase().contains(query) }
+        allCommands.filter { it.name.lowercase().startsWith(query) } +
+            allCommands.filter { !it.name.lowercase().startsWith(query) && it.name.lowercase().contains(query) }
     } else {
         emptyList()
     }
+    // The highlighted row, moved with the arrow keys; back to the top whenever the text changes.
+    var highlighted by remember(typed) { mutableIntStateOf(0) }
+    if (highlighted >= slashMatches.size) highlighted = 0
+
     fun pickCommand(command: AcpCommand) {
-        input.setTextAndPlaceCursorAtEnd("/${command.name} ")
+        when (command.name) {
+            BUILTIN_RESUME -> { input.clearText(); onResume() }
+            BUILTIN_NEW -> { input.clearText(); onNewSession() }
+            else -> input.setTextAndPlaceCursorAtEnd("/${command.name} ")
+        }
     }
     fun send() {
         if (!canSend || agentBusy) return
@@ -1120,7 +1175,7 @@ private fun Composer(
                 .border(1.dp, Palette.Border, RoundedCornerShape(20.dp)),
         ) {
             if (slashMatches.isNotEmpty()) {
-                SlashMenu(slashMatches, onPick = ::pickCommand)
+                SlashMenu(slashMatches, highlighted = highlighted, onPick = ::pickCommand)
             }
 
             if (images.isNotEmpty() || files.isNotEmpty()) {
@@ -1174,14 +1229,29 @@ private fun Composer(
                             content
                         }
                     }
-                    // A hardware keyboard sends with Enter; Shift+Enter keeps a newline.
+                    // A hardware keyboard sends with Enter; Shift+Enter keeps a newline. While the
+                    // slash menu is open the arrows move through it, Enter or Tab picks the
+                    // highlighted command, and Esc closes it.
                     .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {
-                            // With the slash menu open, Enter completes the top command.
-                            if (slashMatches.isNotEmpty()) pickCommand(slashMatches.first()) else send()
-                            true
-                        } else {
-                            false
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        val menuOpen = slashMatches.isNotEmpty()
+                        when {
+                            menuOpen && event.key == Key.DirectionDown -> {
+                                highlighted = (highlighted + 1) % slashMatches.size; true
+                            }
+                            menuOpen && event.key == Key.DirectionUp -> {
+                                highlighted = (highlighted - 1 + slashMatches.size) % slashMatches.size; true
+                            }
+                            menuOpen && (event.key == Key.Tab || (event.key == Key.Enter && !event.isShiftPressed)) -> {
+                                pickCommand(slashMatches[highlighted]); true
+                            }
+                            menuOpen && event.key == Key.Escape -> {
+                                dismissedFor = typed; true
+                            }
+                            event.key == Key.Enter && !event.isShiftPressed -> {
+                                send(); true
+                            }
+                            else -> false
                         }
                     },
                 decorator = { inner ->
@@ -1671,21 +1741,45 @@ private fun SettingRow(label: String, description: String, selected: Boolean, on
     }
 }
 
-/** The agent's slash commands matching what is typed; tapping one fills it in. */
+/** Commands the app handles itself rather than sending to the agent. */
+private const val BUILTIN_RESUME = "resume"
+private const val BUILTIN_NEW = "new"
+
+/**
+ * The slash commands matching what is typed. Tapping one picks it; with a keyboard the arrows
+ * move the highlight, which is kept on screen.
+ */
 @Composable
-private fun SlashMenu(matches: List<AcpCommand>, onPick: (AcpCommand) -> Unit) {
-    Column(
+private fun SlashMenu(matches: List<AcpCommand>, highlighted: Int, onPick: (AcpCommand) -> Unit) {
+    val listState = rememberLazyListState()
+    // Scroll only as far as needed to keep the highlighted row on screen.
+    LaunchedEffect(highlighted, matches.size) {
+        if (matches.isEmpty()) return@LaunchedEffect
+        val visible = listState.layoutInfo.visibleItemsInfo
+        val viewportEnd = listState.layoutInfo.viewportEndOffset
+        val fully = visible.filter { it.offset >= 0 && it.offset + it.size <= viewportEnd }
+        val first = fully.firstOrNull()?.index ?: 0
+        val last = fully.lastOrNull()?.index ?: 0
+        when {
+            highlighted < first -> listState.animateScrollToItem(highlighted)
+            highlighted > last -> listState.animateScrollToItem((highlighted - (fully.size - 1)).coerceAtLeast(0))
+        }
+    }
+    LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 260.dp)
-            .verticalScroll(rememberScrollState())
             .padding(top = 6.dp, start = 6.dp, end = 6.dp),
     ) {
-        matches.forEach { command ->
+        items(matches.size) { index ->
+            val command = matches[index]
+            val active = index == highlighted
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
+                    .background(if (active) Palette.AccentSoft else Color.Transparent)
                     .clickable { onPick(command) }
                     .padding(horizontal = 10.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1701,7 +1795,7 @@ private fun SlashMenu(matches: List<AcpCommand>, onPick: (AcpCommand) -> Unit) {
                     Text(
                         text = command.description.ifBlank { command.hint },
                         style = MaterialTheme.typography.bodySmall,
-                        color = Palette.TextFaint,
+                        color = if (active) Palette.TextDim else Palette.TextFaint,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
@@ -1717,6 +1811,102 @@ private fun SlashMenu(matches: List<AcpCommand>, onPick: (AcpCommand) -> Unit) {
             .height(1.dp)
             .background(Palette.BorderSoft),
     )
+}
+
+/**
+ * The agent's earlier sessions in this folder. Picking one reopens it (with its history when the
+ * agent replays it); "New session" starts over.
+ */
+@Composable
+private fun PastSessionsDialog(
+    client: AcpClient,
+    currentId: String?,
+    onDismiss: () -> Unit,
+) {
+    var sessions by remember { mutableStateOf<List<com.termfold.app.acp.AcpPastSession>?>(null) }
+    LaunchedEffect(Unit) { sessions = client.listPastSessions() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Card,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text(stringResource(R.string.acp_history_title), style = MaterialTheme.typography.titleMedium, color = Palette.Text) },
+        text = {
+            Column(Modifier.heightIn(max = 460.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Palette.Bg)
+                        .clickable { client.startNewSession(); onDismiss() }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(TermFoldIcons.Plus, null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.acp_cmd_new), style = MaterialTheme.typography.labelLarge, color = Palette.Text)
+                }
+                Spacer(Modifier.height(10.dp))
+                val list = sessions
+                when {
+                    list == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                    }
+                    list.isEmpty() -> Text(
+                        stringResource(R.string.acp_history_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.TextFaint,
+                        modifier = Modifier.padding(8.dp),
+                    )
+                    else -> LazyColumn {
+                        items(list.size) { i ->
+                            val past = list[i]
+                            val current = past.sessionId == currentId
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable(enabled = !current) { client.openPastSession(past.sessionId); onDismiss() }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                            ) {
+                                Text(
+                                    text = past.title.ifBlank { stringResource(R.string.acp_history_untitled) },
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+                                    color = if (current) Palette.Accent else Palette.Text,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                val meta = listOfNotNull(
+                                    relativeTime(past.updatedAt).ifBlank { null },
+                                    if (current) stringResource(R.string.acp_history_current) else null,
+                                ).joinToString(" · ")
+                                if (meta.isNotBlank()) {
+                                    Text(meta, style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+    )
+}
+
+/** "3 min ago", "yesterday", "12 Sep" from an ISO-8601 timestamp; blank if unparseable. */
+private fun relativeTime(iso: String): String {
+    val then = runCatching { java.time.Instant.parse(iso) }.getOrNull()
+        ?: runCatching { java.time.OffsetDateTime.parse(iso).toInstant() }.getOrNull()
+        ?: return ""
+    val minutes = java.time.Duration.between(then, java.time.Instant.now()).toMinutes()
+    return when {
+        minutes < 1 -> "just now"
+        minutes < 60 -> "$minutes min ago"
+        minutes < 24 * 60 -> "${minutes / 60} h ago"
+        minutes < 48 * 60 -> "yesterday"
+        minutes < 7 * 24 * 60 -> "${minutes / (24 * 60)} days ago"
+        else -> java.time.format.DateTimeFormatter.ofPattern("d MMM")
+            .format(then.atZone(java.time.ZoneId.systemDefault()))
+    }
 }
 
 private fun Int.toShortCount(): String =
