@@ -145,13 +145,15 @@ private fun MarkdownTable(table: MdBlock.Table, body: androidx.compose.ui.text.T
     val divider = Palette.BorderSoft
     val maxCell = 300.dp
     val minCell = 44.dp
-    Box(
+    androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, Palette.Border, RoundedCornerShape(10.dp))
-            .horizontalScroll(rememberScrollState()),
+            .border(1.dp, Palette.Border, RoundedCornerShape(10.dp)),
     ) {
+      // The chat's width: a narrower table stretches its columns to fill it.
+      val available = constraints.maxWidth
+      Box(Modifier.horizontalScroll(rememberScrollState())) {
         androidx.compose.ui.layout.Layout(
             content = {
                 val rows = listOf(table.header) + table.rows
@@ -195,6 +197,18 @@ private fun MarkdownTable(table: MdBlock.Table, body: androidx.compose.ui.text.T
                 (0 until rowCount).maxOf { r -> measurables[r * columns + c].maxIntrinsicWidth(Int.MAX_VALUE) }
                     .coerceIn(floor, cap)
             }
+            // Share any spare width out in proportion, so the table spans the whole row
+            // instead of leaving its border hanging past the last column.
+            val natural = widths.sum()
+            if (available in 1 until Int.MAX_VALUE && natural < available) {
+                var given = 0
+                for (c in 0 until columns) {
+                    val extra = if (c == columns - 1) available - natural - given
+                    else ((available - natural).toLong() * widths[c] / natural).toInt()
+                    widths[c] += extra
+                    given += extra
+                }
+            }
             val heights = IntArray(rowCount) { r ->
                 (0 until columns).maxOf { c -> measurables[r * columns + c].maxIntrinsicHeight(widths[c]) }
             }
@@ -213,6 +227,7 @@ private fun MarkdownTable(table: MdBlock.Table, body: androidx.compose.ui.text.T
                 }
             }
         }
+      }
     }
 }
 
