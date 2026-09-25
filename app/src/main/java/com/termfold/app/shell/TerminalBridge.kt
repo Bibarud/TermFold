@@ -109,8 +109,19 @@ class TerminalBridge(
     override fun onTextChanged(session: TerminalSession) {
         val now = System.currentTimeMillis()
         if (now - lastInputAt > ECHO_WINDOW_MS) lastWorkAt = now
-        main.post { host.onScreenUpdated() }
+        // Only the session on screen needs drawing: a busy background shell (apt, npm, a build)
+        // must not keep repainting the visible one. And output arrives in many small chunks, so
+        // one redraw is queued per burst rather than one per chunk.
+        if (session !== host.terminalSession()) return
+        if (redrawQueued.compareAndSet(false, true)) {
+            main.post {
+                redrawQueued.set(false)
+                host.onScreenUpdated()
+            }
+        }
     }
+
+    private val redrawQueued = java.util.concurrent.atomic.AtomicBoolean(false)
 
     override fun onTitleChanged(session: TerminalSession) {
         // Bash reports the running command through OSC 0/2, which makes a good session title.

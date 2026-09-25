@@ -16,6 +16,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.content.MediaType
 import androidx.compose.foundation.content.consume
 import androidx.compose.foundation.content.contentReceiver
@@ -536,9 +537,27 @@ private fun Timeline(state: AcpUiState, workspaceDir: String, modifier: Modifier
         is AcpItem.Thought -> last.text.length
         else -> 0
     }
+    // Only while the user is at the bottom: someone who scrolled up to read is left alone.
+    // A new item glides into view; a reply growing in place is followed without an animation
+    // per chunk, which on a slow phone would queue up and stutter.
+    var following by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
+            .collect { (scrolling, canScrollForward) ->
+                if (scrolling) following = !canScrollForward
+            }
+    }
+    var lastCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(items.size, lastLength, state.agentBusy) {
         val count = listState.layoutInfo.totalItemsCount
-        if (count > 0) runCatching { listState.animateScrollToItem(count - 1) }
+        val grew = items.size != lastCount
+        lastCount = items.size
+        if (count == 0 || !following) return@LaunchedEffect
+        runCatching {
+            if (grew) listState.animateScrollToItem(count - 1) else listState.scrollToItem(count - 1)
+            // Show the end of a long reply, not its first line.
+            listState.scrollBy(100_000f)
+        }
     }
 
     LazyColumn(
@@ -606,11 +625,23 @@ private fun UserMessageRow(item: AcpItem.UserMessage) {
 
 @Composable
 private fun ImageThumb(image: AcpBlock.Image, size: Int, onRemove: (() -> Unit)? = null) {
-    val bitmap = remember(image.base64) {
-        runCatching {
-            val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-        }.getOrNull()
+    // Decoded off the main thread, and only as large as the thumbnail: a pasted screenshot is
+    // ~10 MB as a full bitmap, which a chat with a few of them cannot afford on a small phone.
+    val targetPx = with(androidx.compose.ui.platform.LocalDensity.current) { size.dp.roundToPx() }
+    val bitmap by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, image.base64, targetPx) {
+        value = withContext(Dispatchers.Default) {
+            runCatching {
+                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                var sample = 1
+                while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= targetPx) sample *= 2
+                android.graphics.BitmapFactory.decodeByteArray(
+                    bytes, 0, bytes.size,
+                    android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
+                )?.asImageBitmap()
+            }.getOrNull()
+        }
     }
     Box(
         Modifier
@@ -619,9 +650,9 @@ private fun ImageThumb(image: AcpBlock.Image, size: Int, onRemove: (() -> Unit)?
             .background(Palette.Card)
             .border(1.dp, Palette.BorderSoft, RoundedCornerShape(12.dp)),
     ) {
-        if (bitmap != null) {
+        bitmap?.let { thumb ->
             Image(
-                bitmap = bitmap,
+                bitmap = thumb,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

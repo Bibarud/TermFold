@@ -455,8 +455,17 @@ object AcpInstaller {
     /** Registry-published checksums are honoured whenever the entry ships one. */
     private fun verify(archive: File, expectedSha256: String?) {
         if (expectedSha256.isNullOrBlank()) return
-        val digest = MessageDigest.getInstance("SHA-256").digest(archive.readBytes())
-        val actual = digest.joinToString("") { "%02x".format(it) }
+        // Streamed: agent downloads run past 100 MB, far more than a low-end phone's heap.
+        val sha = MessageDigest.getInstance("SHA-256")
+        archive.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 16)
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                sha.update(buffer, 0, n)
+            }
+        }
+        val actual = sha.digest().joinToString("") { "%02x".format(it) }
         check(actual == expectedSha256.lowercase()) {
             "Download failed verification: expected $expectedSha256, got $actual"
         }
@@ -480,12 +489,20 @@ object AcpInstaller {
         }
         val url = "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-$arch.tar.gz"
         val archive = download(url, context.cacheDir, "node")
+        // Checked against the release's published SHA-256 list before anything is unpacked.
+        val sums = download("https://nodejs.org/dist/$NODE_VERSION/SHASUMS256.txt", context.cacheDir, "node-sums")
+        val expected = sums.readLines()
+            .firstOrNull { it.trim().endsWith("  node-$NODE_VERSION-linux-$arch.tar.gz") }
+            ?.substringBefore(' ')
+        sums.delete()
+        checkNotNull(expected) { "Node.js checksum not found for $arch" }
+        verify(archive, expected)
         onProgress("Unpacking Node.js")
         val parent = File(ShellPaths.rootfsDir(context), "opt")
         parent.mkdirs()
         // TarExtractor gunzips internally — the raw stream goes in.
         archive.inputStream().buffered().use { input ->
-            TarExtractor.extract(input, parent)
+            TarExtractor.extract(input, parent, confined = true)
         }
         archive.delete()
 

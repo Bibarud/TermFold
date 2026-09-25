@@ -95,6 +95,11 @@ fun EmbeddedTerminal(
                     onReady(this)
                 }
             },
+            // The host keeps a static reference to the view it draws into; drop it with the
+            // view, or a closed bubble or main window would stay in memory behind it.
+            onRelease = { view ->
+                if (TerminalHost.currentView === view) TerminalHost.currentView = null
+            },
             update = { view ->
                 // `update` also runs after a configuration change, so the client and session are
                 // re-checked rather than assumed.

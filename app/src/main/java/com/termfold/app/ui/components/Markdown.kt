@@ -60,12 +60,21 @@ fun Markdown(
     bodyStyle: androidx.compose.ui.text.TextStyle? = null,
 ) {
     val blocks = remember(text) { parseMarkdown(text) }
+    // Inline marks are parsed once per piece of text. A streaming reply recomposes the chat on
+    // every chunk, and re-running the inline regex over every visible block each time is what
+    // made long chats heavy on slower phones.
+    val cache = remember { HashMap<String, AnnotatedString>() }
+    val ann: (String) -> AnnotatedString = { s ->
+        // A streaming paragraph is a new string on every chunk; keep the cache small.
+        if (cache.size > 256) cache.clear()
+        cache.getOrPut(s) { inline(s) }
+    }
     val body = bodyStyle ?: MaterialTheme.typography.bodyMedium.copy(lineHeight = 22.sp)
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         blocks.forEach { block ->
             when (block) {
                 is MdBlock.Heading -> Text(
-                    text = inline(block.text),
+                    text = ann(block.text),
                     // Chat headings stay close to body size; the app's display sizes would shout.
                     // A custom body style (the reasoning view) keeps headings at its own size.
                     style = when {
@@ -79,7 +88,7 @@ fun Markdown(
                 )
 
                 is MdBlock.Paragraph -> Text(
-                    text = inline(block.text),
+                    text = ann(block.text),
                     style = body,
                     color = color,
                 )
@@ -95,7 +104,7 @@ fun Markdown(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = inline(item.text),
+                                text = ann(item.text),
                                 style = body,
                                 color = color,
                             )
@@ -112,7 +121,7 @@ fun Markdown(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        text = inline(block.text),
+                        text = ann(block.text),
                         style = body,
                         color = secondary,
                     )
@@ -120,7 +129,7 @@ fun Markdown(
 
                 is MdBlock.Code -> CodeBlock(language = block.language, code = block.code)
 
-                is MdBlock.Table -> MarkdownTable(block, body, color)
+                is MdBlock.Table -> MarkdownTable(block, body, color, ann)
 
                 MdBlock.Rule -> Box(
                     Modifier
@@ -139,7 +148,12 @@ fun Markdown(
  * so the columns line up; a table wider than the chat scrolls sideways instead of squashing.
  */
 @Composable
-private fun MarkdownTable(table: MdBlock.Table, body: androidx.compose.ui.text.TextStyle, color: androidx.compose.ui.graphics.Color) {
+private fun MarkdownTable(
+    table: MdBlock.Table,
+    body: androidx.compose.ui.text.TextStyle,
+    color: androidx.compose.ui.graphics.Color,
+    ann: (String) -> AnnotatedString,
+) {
     val columns = table.header.size
     val cellStyle = body.copy(fontSize = (body.fontSize.value - 1f).coerceAtLeast(11f).sp, lineHeight = 19.sp)
     val divider = Palette.BorderSoft
@@ -175,7 +189,7 @@ private fun MarkdownTable(table: MdBlock.Table, body: androidx.compose.ui.text.T
                                 .padding(horizontal = 10.dp, vertical = 7.dp),
                         ) {
                             Text(
-                                text = inline(row.getOrElse(c) { "" }),
+                                text = ann(row.getOrElse(c) { "" }),
                                 style = if (header) cellStyle.copy(fontWeight = FontWeight.SemiBold) else cellStyle,
                                 color = color,
                                 textAlign = when (table.align.getOrNull(c)) {
@@ -457,6 +471,8 @@ private val INLINE = Regex(
 )
 
 /** Inline marks to an AnnotatedString. Marks do not nest, which is what agents almost never need. */
+private val SAFE_LINK = Regex("^(https?://|mailto:)", RegexOption.IGNORE_CASE)
+
 internal fun inline(text: String): AnnotatedString = buildAnnotatedString {
     var cursor = 0
     INLINE.findAll(text).forEach { match ->
@@ -476,12 +492,16 @@ internal fun inline(text: String): AnnotatedString = buildAnnotatedString {
             g[6].isNotEmpty() ->
                 withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(g[6]) }
 
-            else -> withLink(
+            // Agents write the links, so only ordinary web and mail links are made tappable;
+            // intent:, file:, content: or javascript: targets stay plain text.
+            SAFE_LINK.containsMatchIn(g[8]) -> withLink(
                 LinkAnnotation.Url(
                     g[8],
                     TextLinkStyles(SpanStyle(color = Palette.Accent, textDecoration = TextDecoration.Underline)),
                 ),
             ) { append(g[7]) }
+
+            else -> withStyle(SpanStyle(color = Palette.Accent)) { append(g[7]) }
         }
         cursor = match.range.last + 1
     }

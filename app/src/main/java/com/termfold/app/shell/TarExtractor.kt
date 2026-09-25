@@ -34,8 +34,23 @@ internal object TarExtractor {
         destination: File,
         onWarning: (String) -> Unit = {},
         gunzip: Boolean = true,
+        /**
+         * For downloaded archives: every file is written, and every hard link read, only at a
+         * real location inside [destination]. Without it an archive could plant a symlink to
+         * somewhere else and then write through it. The bundled Ubuntu image is trusted and
+         * needs links that point anywhere, so it is extracted unconfined.
+         */
+        confined: Boolean = false,
     ) {
         destination.mkdirs()
+        val home = if (confined) destination.canonicalPath + File.separator else null
+        fun inside(file: File): File {
+            if (home != null) {
+                val real = (file.parentFile?.canonicalPath ?: "") + File.separator
+                require(real.startsWith(home)) { "Unsafe path in archive: ${file.path}" }
+            }
+            return file
+        }
 
         val buffer = ByteArray(BLOCK)
         var pendingLongName: String? = null
@@ -92,6 +107,8 @@ internal object TarExtractor {
                 '0', '\u0000', '7' -> {
                     val file = target(destination, fullName)
                     file.parentFile?.mkdirs()
+                    inside(file)
+                    file.parentFile?.mkdirs()
                     writeFile(stream, file, size, mode)
                     // The payload has been consumed, but its block padding has not.
                     skipPadding(stream, size)
@@ -111,6 +128,9 @@ internal object TarExtractor {
                 '1' -> {
                     val link = target(destination, fullName)
                     val source = target(destination, linkName)
+                    link.parentFile?.mkdirs()
+                    inside(link)
+                    inside(source)
                     link.parentFile?.mkdirs()
                     runCatching {
                         link.delete()

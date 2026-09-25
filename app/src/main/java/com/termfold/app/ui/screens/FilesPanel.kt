@@ -263,9 +263,36 @@ private fun DrawerOverlay(visible: Boolean, onDismiss: () -> Unit, panel: @Compo
 
 private data class TreeRow(val file: File, val depth: Int, val isDir: Boolean)
 
-private fun listChildren(dir: File): List<File> =
+/** A directory entry with its type read once, off the main thread. */
+private data class Entry(val file: File, val isDir: Boolean)
+
+private fun listChildren(dir: File): List<Entry> =
     (dir.listFiles() ?: emptyArray())
-        .sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase() }, { it.name }))
+        .map { Entry(it, it.isDirectory) }
+        .sortedWith(compareBy<Entry>({ !it.isDir }, { it.file.name.lowercase() }, { it.file.name }))
+
+/**
+ * Deletes a file, or a folder and everything in it, without following symbolic links: a link
+ * inside the folder is removed as a link, never used to reach and delete what it points to.
+ */
+private fun deleteTree(target: File): Boolean {
+    val root = target.toPath()
+    if (!java.nio.file.Files.isDirectory(root, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+        return runCatching { java.nio.file.Files.deleteIfExists(root) }.isSuccess && !target.exists()
+    }
+    return runCatching {
+        java.nio.file.Files.walkFileTree(
+            root,
+            object : java.nio.file.SimpleFileVisitor<java.nio.file.Path>() {
+                override fun visitFile(file: java.nio.file.Path, attrs: java.nio.file.attribute.BasicFileAttributes) =
+                    java.nio.file.FileVisitResult.CONTINUE.also { java.nio.file.Files.delete(file) }
+
+                override fun postVisitDirectory(dir: java.nio.file.Path, exc: java.io.IOException?) =
+                    java.nio.file.FileVisitResult.CONTINUE.also { java.nio.file.Files.delete(dir) }
+            },
+        )
+    }.isSuccess && !target.exists()
+}
 
 @Composable
 private fun FileTree(
@@ -281,7 +308,7 @@ private fun FileTree(
     // refreshed every few seconds, so files an agent or a shell creates show up on their own.
     val expanded = rememberSaveable(root?.path, saver = PathSetSaver) { mutableSetOf() }
     var expandedVersion by remember { mutableStateOf(0) }
-    val listings = remember(root?.path) { mutableStateMapOf<String, List<File>>() }
+    val listings = remember(root?.path) { mutableStateMapOf<String, List<Entry>>() }
     var refreshTick by remember { mutableStateOf(0) }
 
     LaunchedEffect(root?.path, expandedVersion, refreshTick) {
@@ -302,8 +329,7 @@ private fun FileTree(
     val rows = remember(listings.toMap(), expandedVersion, root?.path) {
         val out = mutableListOf<TreeRow>()
         fun walk(dir: File, depth: Int) {
-            listings[dir.path]?.forEach { child ->
-                val isDir = child.isDirectory
+            listings[dir.path]?.forEach { (child, isDir) ->
                 out += TreeRow(child, depth, isDir)
                 if (isDir && child.path in expanded) walk(child, depth + 1)
             }
@@ -403,8 +429,7 @@ private fun FileTree(
             onConfirm = {
                 scope.launch {
                     val deleted = withContext(Dispatchers.IO) {
-                        runCatching { if (target.isDirectory) target.deleteRecursively() else target.delete() }
-                            .getOrDefault(false) && !target.exists()
+                        deleteTree(target)
                     }
                     if (deleted) {
                         confirmDelete = null
@@ -620,6 +645,7 @@ private val PathSetSaver = androidx.compose.runtime.saveable.Saver<MutableSet<St
 // ---- The editor -------------------------------------------------------------------------------
 
 private const val MAX_EDIT_BYTES = 4L * 1024 * 1024
+private const val EDITOR_PAGE = "file:///android_asset/editor/index.html"
 private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
 
 private sealed interface Loaded {
@@ -706,7 +732,8 @@ private fun CodeEditor(
     }
 
     val bridge = remember {
-        EditorBridge(post = { r -> android.os.Handler(android.os.Looper.getMainLooper()).post(r) })
+        val main = android.os.Handler(android.os.Looper.getMainLooper())
+        EditorBridge(post = { r -> main.post(r) })
     }
     bridge.onReady = { pageReady = true }
     bridge.onDirty = { dirty = it; onDirtyChange(it) }
@@ -790,10 +817,26 @@ private fun CodeEditor(
                     WebView(context).apply {
                         setBackgroundColor(android.graphics.Color.parseColor("#08080A"))
                         settings.javaScriptEnabled = true
+                        // The page is the app's own bundled asset; it needs nothing else. No
+                        // content:// access, no file:// reads from script, no network, and no
+                        // navigating away (a pasted or dropped link must not load a web page
+                        // that could reach the bridge).
                         settings.allowFileAccess = true
+                        settings.allowContentAccess = false
+                        @Suppress("DEPRECATION")
+                        settings.allowFileAccessFromFileURLs = false
+                        @Suppress("DEPRECATION")
+                        settings.allowUniversalAccessFromFileURLs = false
+                        settings.blockNetworkLoads = true
                         settings.domStorageEnabled = false
                         settings.builtInZoomControls = false
-                        webViewClient = WebViewClient()
+                        settings.setGeolocationEnabled(false)
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView,
+                                request: android.webkit.WebResourceRequest,
+                            ): Boolean = !request.url.toString().startsWith(EDITOR_PAGE)
+                        }
                         webChromeClient = object : android.webkit.WebChromeClient() {
                             override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
                                 android.util.Log.i("TermFoldEditor", "${message.message()} (${message.sourceId()}:${message.lineNumber()})")
@@ -801,7 +844,7 @@ private fun CodeEditor(
                             }
                         }
                         addJavascriptInterface(bridge, "Android")
-                        loadUrl("file:///android_asset/editor/index.html")
+                        loadUrl(EDITOR_PAGE)
                         webView = this
                     }
                 },

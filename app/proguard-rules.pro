@@ -29,3 +29,10 @@
     @android.webkit.JavascriptInterface <methods>;
 }
 -keepattributes JavascriptInterface
+
+# Release builds drop debug and verbose logging. Agent stderr is logged at debug level and can
+# contain tokens or file contents; it also costs time on slow phones.
+-assumenosideeffects class android.util.Log {
+    public static int v(...);
+    public static int d(...);
+}

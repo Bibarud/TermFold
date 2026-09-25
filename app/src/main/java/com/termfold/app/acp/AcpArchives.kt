@@ -37,13 +37,13 @@ internal object AcpArchives {
             hasMagic(0x1f, 0x8b) ->
                 // TarExtractor gunzips internally; hand it the raw stream.
                 archive.inputStream().buffered().use { input ->
-                    TarExtractor.extract(input, destination)
+                    TarExtractor.extract(input, destination, confined = true)
                 }
 
             hasMagic(0x42, 0x5a, 0x68) -> // "BZh" — bzip2-compressed tar (goose)
                 archive.inputStream().buffered().use { input ->
                     BZip2CompressorInputStream(input, true).use { decompressed ->
-                        TarExtractor.extract(decompressed, destination, gunzip = false)
+                        TarExtractor.extract(decompressed, destination, gunzip = false, confined = true)
                     }
                 }
 
@@ -52,6 +52,7 @@ internal object AcpArchives {
             hasMagic(0x7f, 0x45, 0x4c, 0x46) -> { // ELF — the download is the binary itself
                 val cmd = cmdPath?.let { normaliseCmd(it) }?.takeIf { it.isNotBlank() }
                     ?: error("A raw-binary distribution needs a command path to land at")
+                require(!cmd.split('/').contains("..")) { "Unsafe command path: $cmd" }
                 val target = File(destination, cmd)
                 target.parentFile?.mkdirs()
                 archive.copyTo(target, overwrite = true)
@@ -61,7 +62,7 @@ internal object AcpArchives {
             magic.size >= 262 && String(magic, 257, 5) == "ustar" ->
                 // Uncompressed tar: the ustar magic lives at offset 257 of the first header.
                 archive.inputStream().buffered().use { input ->
-                    TarExtractor.extract(input, destination, gunzip = false)
+                    TarExtractor.extract(input, destination, gunzip = false, confined = true)
                 }
 
             else -> error(
@@ -103,7 +104,8 @@ internal object AcpArchives {
         cmd.replace('\\', '/').trim().removePrefix("./").trimStart('/')
 
     private fun extractZip(archive: File, destination: File) {
-        val canonical = destination.canonicalPath
+        // With the separator, so "/x/acp-evil" does not pass for a path inside "/x/acp".
+        val canonical = destination.canonicalPath + File.separator
         java.util.zip.ZipFile(archive).use { zip ->
             val entries = zip.entries()
             while (entries.hasMoreElements()) {
