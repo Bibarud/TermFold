@@ -226,7 +226,20 @@ object ProotCommand {
      * fixed-offset string is used, whose sign convention is the inverse of UTC offsets.
      */
     internal fun guestTimeZone(rootfs: File?, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
-        if (rootfs != null && File(rootfs, "usr/share/zoneinfo/${zone.id}").isFile) return zone.id
+        if (rootfs != null) {
+            // Android still reports some zones by their legacy names (Asia/Calcutta), which Ubuntu
+            // 24.04 only ships in tzdata-legacy. An equivalent current name (Asia/Kolkata) is
+            // there, and a real zone name is what Node, Python and the rest actually understand;
+            // the POSIX fallback below leaves Node-based tools such as Claude Code on UTC.
+            val candidates = buildList {
+                add(zone.id)
+                runCatching {
+                    val count = android.icu.util.TimeZone.countEquivalentIDs(zone.id)
+                    for (i in 0 until count) add(android.icu.util.TimeZone.getEquivalentID(zone.id, i))
+                }
+            }
+            candidates.firstOrNull { File(rootfs, "usr/share/zoneinfo/$it").isFile }?.let { return it }
+        }
         val totalMinutes = zone.getOffset(System.currentTimeMillis()) / 60_000
         val sign = if (totalMinutes >= 0) "-" else "+"
         val abs = kotlin.math.abs(totalMinutes)

@@ -23,8 +23,8 @@
 </p>
 
 <p align="center">
-  <a href="docs/media/termfold-promo.mp4"><img src="docs/media/termfold-demo.gif" width="320" alt="TermFold in 17 seconds: a real Ubuntu terminal, the agents, the native chat and the model picker"></a><br>
-  <sub><a href="docs/media/termfold-promo.mp4">▶ Watch the full 30-second video (with sound)</a></sub>
+  <a href="docs/media/termfold-promo.mp4"><img src="docs/media/termfold-demo.gif" width="480" alt="TermFold: chatting with Claude on an Android tablet, approving a file write, and the rendered reply"></a><br>
+  <sub><a href="docs/media/termfold-promo.mp4">▶ Watch the 50-second film (with sound)</a></sub>
 </p>
 
 ![The terminal: Ubuntu 24.04 with Python, Node and git, and the tablet key row](docs/screenshots/terminal.png)
@@ -127,7 +127,7 @@ Other tools:
 - `tools/build-procfd-shim.py` rebuilds the small `LD_PRELOAD` helper some agents need (needs `pip install ziglang`)
 - `tools/editor/` is the code editor's source (`npm install && npm run build` writes `assets/editor/editor.js`)
 - `tools/make-file-icons.py` bundles the file tree's icons from the `material-icon-theme` npm package
-- `tools/promo/` renders the promo video and its original soundtrack
+- `tools/promo-v2/` is the launch film (Remotion, real device footage) and `music.py`, its original soundtrack; `tools/promo/` is the first version
 
 ## Limits
 

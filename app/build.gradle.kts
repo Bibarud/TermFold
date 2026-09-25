@@ -18,8 +18,8 @@ android {
         // runs in the untrusted_app domain and execve is denied outright. This is exactly why
         // Termux itself pins targetSdk=28. Without it the bundled PRoot cannot start at all.
         targetSdk = 28
-        versionCode = 7
-        versionName = "1.4.2"
+        versionCode = 8
+        versionName = "1.4.3"
     }
 
     androidResources {
