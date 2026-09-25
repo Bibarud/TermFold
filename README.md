@@ -18,8 +18,13 @@
 </p>
 
 <p align="center">
-  <a href="docs/media/termfold-promo.mp4"><img src="docs/media/poster.png" width="300" alt="Watch the 30-second video"></a><br>
-  <sub><a href="docs/media/termfold-promo.mp4">▶ Watch the 30-second video</a></sub>
+  <a href="https://github.com/Bibarud/TermFold/releases/latest"><img alt="Get it on GitHub" src="https://img.shields.io/badge/Get%20it%20on-GitHub-181717?style=for-the-badge&logo=github" height="44"></a>
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Bibarud/TermFold"><img alt="Get it on Obtainium" src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" height="44"></a>
+</p>
+
+<p align="center">
+  <a href="docs/media/termfold-promo.mp4"><img src="docs/media/termfold-demo.gif" width="320" alt="TermFold in 17 seconds: a real Ubuntu terminal, the agents, the native chat and the model picker"></a><br>
+  <sub><a href="docs/media/termfold-promo.mp4">▶ Watch the full 30-second video (with sound)</a></sub>
 </p>
 
 ![The terminal: Ubuntu 24.04 with Python, Node and git, and the tablet key row](docs/screenshots/terminal.png)
@@ -73,6 +78,15 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 
 Requirements: Android 8.0+ on an arm64 (almost every phone and tablet) or x86_64 device, and a
 few GB of free space for Ubuntu and the tools you install.
+
+**Automatic updates:** add the repo to [Obtainium](https://github.com/ImranR98/Obtainium) (badge
+above) and it installs each new release for you.
+
+**Why not Google Play?** Play only accepts apps that target a recent Android version, and those
+are not allowed to run programs they ship themselves, which is exactly what a Linux environment
+does. TermFold targets an older version on purpose (Termux does the same), so it is distributed
+here instead. Every release is built from this repository and signed with the same key, and each
+one lists its SHA-256 checksum.
 
 ## How it works
 
