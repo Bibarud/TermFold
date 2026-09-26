@@ -84,6 +84,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -462,19 +463,23 @@ fun PreviewPane(
         }
 
         // ---- Page
-        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().background(if (viewport == Viewport.PHONE) Palette.Card else Palette.Bg)) {
+        // Clipped: the WebView is a native view and must never draw over the toolbar.
+        BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clipToBounds().background(if (viewport == Viewport.PHONE) Palette.Card else Palette.Bg)) {
             val phoneFrame = viewport == Viewport.PHONE && maxWidth > (PHONE_WIDTH + 40).dp
             Box(
                 Modifier
                     .align(Alignment.TopCenter)
                     .then(if (phoneFrame) Modifier.padding(vertical = 12.dp).width(PHONE_WIDTH.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Palette.Border, RoundedCornerShape(12.dp)) else Modifier.fillMaxWidth())
-                    .fillMaxHeight(),
+                    .fillMaxHeight()
+                    .clipToBounds(),
             ) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
+                    // No page yet: nothing to show, and no white flash behind the start page.
+                    update = { view -> view.visibility = if (showStart) android.view.View.INVISIBLE else android.view.View.VISIBLE },
                     factory = { ctx ->
                         WebView(ctx).apply {
-                            setBackgroundColor(android.graphics.Color.WHITE)
+                            setBackgroundColor(android.graphics.Color.parseColor("#08080A"))
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.databaseEnabled = true

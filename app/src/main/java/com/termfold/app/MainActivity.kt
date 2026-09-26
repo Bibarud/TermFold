@@ -552,8 +552,10 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
         // ---- The preview over everything (phone, or full screen on a tablet).
         androidx.compose.animation.AnimatedVisibility(
             visible = preview.open && (!windowWidth.isWide || previewMax),
-            enter = androidx.compose.animation.slideInVertically { it / 10 } + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.slideOutVertically { it / 10 } + androidx.compose.animation.fadeOut(),
+            // A fade, not a slide: a moving layer can leave the WebView (a native view) drawn
+            // out of place on some phones.
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
         ) {
             BackHandler { if (previewMax) previewMax = false else com.termfold.app.preview.Preview.close() }
             PreviewPane(
@@ -565,7 +567,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                     previewMax = false
                     com.termfold.app.preview.Preview.close()
                 },
-                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                // Dark behind the status and navigation bars too, not just inside them.
+                modifier = Modifier.fillMaxSize().background(Palette.Bg).windowInsetsPadding(WindowInsets.safeDrawing),
             )
         }
     }
