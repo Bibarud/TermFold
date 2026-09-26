@@ -182,6 +182,7 @@ fun TerminalScreen(
             title = liveTitle.ifBlank { sessionName },
             subtitle = folder.name,
             exited = exited,
+            previewDir = com.termfold.app.shell.Projects.guestPath(androidx.compose.ui.platform.LocalContext.current, folder.path),
             filesOpen = filesOpen,
             onToggleFiles = onToggleFiles,
             findOpen = findOpen,
@@ -270,6 +271,7 @@ private fun TerminalHeader(
     title: String,
     subtitle: String,
     exited: Boolean,
+    previewDir: String?,
     filesOpen: Boolean,
     onToggleFiles: () -> Unit,
     findOpen: Boolean,
@@ -314,6 +316,7 @@ private fun TerminalHeader(
             active = findOpen,
             onClick = onToggleFind,
         )
+        PreviewButton(previewDir)
         FilesButton(open = filesOpen, onClick = onToggleFiles)
         Spacer(Modifier.size(4.dp))
         PillButton(

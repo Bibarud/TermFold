@@ -100,6 +100,7 @@ fun FolderDetailScreen(
                 onClick = onBack,
             )
             Spacer(Modifier.weight(1f))
+            PreviewButton(com.termfold.app.shell.Projects.guestPath(androidx.compose.ui.platform.LocalContext.current, folder.path))
             FilesButton(open = filesOpen, onClick = onToggleFiles)
             BareIconButton(
                 icon = TermFoldIcons.More,

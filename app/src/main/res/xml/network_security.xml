@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The in-app preview is a browser: dev servers on localhost and machines on the local network
+    speak plain http, and so do some sites. What the app fetches for itself uses https.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

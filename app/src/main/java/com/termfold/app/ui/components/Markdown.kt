@@ -474,11 +474,13 @@ private val INLINE = Regex(
         "|\\*\\*(.+?)\\*\\*|__(.+?)__" +        // bold
         "|(?<![*\\w])\\*(?!\\s)(.+?)(?<!\\s)\\*(?!\\*)|(?<![_\\w])_(?!\\s)(.+?)(?<!\\s)_(?![_\\w])" + // italic
         "|~~(.+?)~~" +                          // strike
-        "|\\[([^\\]]+)]\\((\\S+?)\\)",           // link
+        "|\\[([^\\]]+)]\\((\\S+?)\\)" +         // link
+        "|(https?://[^\\s<>()\\[\\]`'\"]+[^\\s<>()\\[\\]`'\".,;:!?])", // bare URL
 )
 
 /** Inline marks to an AnnotatedString. Marks do not nest, which is what agents almost never need. */
 private val SAFE_LINK = Regex("^(https?://|mailto:)", RegexOption.IGNORE_CASE)
+private val BARE_URL = Regex("^https?://\\S+$", RegexOption.IGNORE_CASE)
 
 internal fun inline(text: String): AnnotatedString = buildAnnotatedString {
     var cursor = 0
@@ -486,6 +488,21 @@ internal fun inline(text: String): AnnotatedString = buildAnnotatedString {
         append(text.substring(cursor, match.range.first))
         val g = match.groupValues
         when {
+            // A URL in backticks (agents write `http://localhost:3000`) is still a link.
+            g[1].isNotEmpty() && BARE_URL.matches(g[1]) -> withLink(
+                LinkAnnotation.Url(
+                    g[1],
+                    TextLinkStyles(SpanStyle(fontFamily = Mono, fontSize = 13.sp, background = Palette.CardPressed, color = Palette.Accent)),
+                ),
+            ) { append(" ${g[1]} ") }
+
+            g[9].isNotEmpty() -> withLink(
+                LinkAnnotation.Url(
+                    g[9],
+                    TextLinkStyles(SpanStyle(color = Palette.Accent, textDecoration = TextDecoration.Underline)),
+                ),
+            ) { append(g[9]) }
+
             g[1].isNotEmpty() -> withStyle(
                 SpanStyle(fontFamily = Mono, fontSize = 13.sp, background = Palette.CardPressed, color = Palette.TermOut),
             ) { append(" ${g[1]} ") }

@@ -180,3 +180,26 @@ On an API 34 x86_64 emulator, from the app's own process:
 - `curl https://archive.ubuntu.com/ubuntu/` returning HTTP 200 through the installed CA bundle.
 - A project folder bind-mounted at `/workspace`, readable and writable from the guest.
 - Full-screen terminal with correct cursor keys, Ctrl combinations, and repaint.
+
+## The agent browser
+
+Agents drive the preview WebView through `termfold-browser` (`/usr/local/bin`, a Node script
+that is both a command and a stdio MCP server). It talks to the app over loopback: the app
+listens on 127.0.0.1 on a random port and writes the port and a random key to
+`~/.termfold/browser.json`, inside app-private storage, so only programs in the guest can use
+it. Chat sessions get the MCP server in `session/new`; shell agents get a skill
+(`~/.claude/skills/termfold-browser`) and a marked section in their global instructions.
+
+- Taps, swipes and keys are real `MotionEvent`/`KeyEvent`s dispatched to the WebView, so pages
+  see trusted input. Elements are found with a small in-page script that numbers what a person
+  can interact with (`data-tf-ref`); coordinates are converted with the visual viewport width.
+- Animating the pointer needs the composition's frame clock: run it in a scope from
+  `rememberCoroutineScope`, not in the bridge's coroutine ("MonotonicFrameClock is not
+  available").
+- WebView methods must be called on the main thread, including `url`; read what is needed before
+  switching to `Dispatchers.IO`.
+- Agent screenshots are temporary (`/tmp/termfold-screenshots`, newest 100, a day at most):
+  saving them in the project filled it and, with live reload watching the folder, reloaded the
+  page under test.
+- A click moves keyboard focus into the page, as a person's tap would.
+

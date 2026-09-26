@@ -916,6 +916,13 @@ private fun TreeRowView(
         containerColor = Palette.Card,
         shape = RoundedCornerShape(12.dp),
     ) {
+        if (com.termfold.app.preview.Preview.canPreview(row.file)) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            MenuEntry(TermFoldIcons.Globe, stringResource(R.string.preview_title)) {
+                onDismissMenu()
+                com.termfold.app.preview.Preview.openFile(context, row.file)
+            }
+        }
         if (row.isDir) {
             MenuEntry(TermFoldIcons.Upload, stringResource(R.string.files_upload_here), onUploadHere)
         } else {
@@ -1214,6 +1221,12 @@ private fun TextEditor(
                 )
             }
             if (text != null) {
+                if (com.termfold.app.preview.Preview.canPreview(file)) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    EditorAction(TermFoldIcons.Globe, stringResource(R.string.preview_title)) {
+                        com.termfold.app.preview.Preview.openFile(context, file)
+                    }
+                }
                 EditorAction(TermFoldIcons.Search, stringResource(R.string.files_search)) { js("tf.search();") }
                 EditorAction(TermFoldIcons.Wrap, stringResource(R.string.files_wrap), active = wrap) {
                     wrap = !wrap

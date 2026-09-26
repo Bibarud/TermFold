@@ -306,6 +306,11 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
         ) {
             val f = item.file
             fun act(block: () -> Unit) { menuFor = null; block() }
+            if (com.termfold.app.preview.Preview.canPreview(f)) {
+                MenuEntry(TermFoldIcons.Globe, stringResource(R.string.preview_title)) {
+                    act { com.termfold.app.preview.Preview.openFile(context, f) }
+                }
+            }
             if (!isUser(f)) {
                 // A system file: look, take its path, or copy it into Home to work on.
                 if (!item.isDir && FileActions.isImage(f)) MenuEntry(TermFoldIcons.ImageCopy, stringResource(R.string.img_copy)) { act { copyImage(f) } }

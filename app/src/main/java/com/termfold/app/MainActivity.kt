@@ -48,6 +48,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import com.termfold.app.ui.screens.PreviewPane
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -233,6 +244,10 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
         }
     }
     var filesOpen by rememberSaveable { mutableStateOf(false) }
+    val preview by com.termfold.app.preview.Preview.state.collectAsStateWithLifecycle()
+    // On a tablet the preview sits beside the work; this is its share of the width.
+    var previewFraction by rememberSaveable { mutableFloatStateOf(0.5f) }
+    var previewMax by rememberSaveable { mutableStateOf(false) }
     var tab by remember { mutableStateOf(NavTab.FOLDERS) }
     var newProject by remember { mutableStateOf(false) }
     val job by viewModel.job.collectAsStateWithLifecycle()
@@ -258,7 +273,11 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
 
     // Projects are folders in ~/projects; the list follows that folder (a project made with
     // mkdir in a shell appears, a deleted one goes), checked on start and on every return.
-    LaunchedEffect(shell.state) { viewModel.syncProjects() }
+    LaunchedEffect(shell.state) {
+        viewModel.syncProjects()
+        // Agents in the Linux environment can use the preview browser from now on.
+        if (shell.state == ShellState.READY) com.termfold.app.preview.BrowserBridge.start(context)
+    }
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.DisposableEffect(lifecycle) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -301,6 +320,21 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
 
     // Phone and tablet share one tree; only the navigation container and the folder presentation
     // differ, so there is no second layout to keep in sync.
+    // Web links in chats open in the preview (which can hand them on to a browser); mail and
+    // other links go to the system as before.
+    val systemUriHandler = LocalUriHandler.current
+    val uriHandler = remember(systemUriHandler) {
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                if (uri.startsWith("http://", ignoreCase = true) || uri.startsWith("https://", ignoreCase = true)) {
+                    com.termfold.app.preview.Preview.open(uri)
+                } else {
+                    runCatching { systemUriHandler.openUri(uri) }
+                }
+            }
+        }
+    }
+    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
     AppSurface {
         Row(modifier = Modifier.fillMaxSize()) {
             if (windowWidth.isWide) {
@@ -474,7 +508,67 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                 }
               }
             }
+
+            // ---- The preview beside the work (tablet), with a handle to resize it.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = windowWidth.isWide && preview.open && !previewMax,
+                enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.Start) + androidx.compose.animation.fadeOut(),
+            ) {
+                val total = LocalConfiguration.current.screenWidthDp.dp - 84.dp
+                val density = LocalDensity.current
+                Row(Modifier.fillMaxHeight()) {
+                    Box(
+                        Modifier
+                            .width(14.dp)
+                            .fillMaxHeight()
+                            .draggable(
+                                orientation = Orientation.Horizontal,
+                                state = rememberDraggableState { delta ->
+                                    val totalPx = with(density) { total.toPx() }
+                                    previewFraction = (previewFraction - delta / totalPx).coerceIn(0.3f, 0.72f)
+                                },
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.BorderSoft))
+                        Box(Modifier.width(4.dp).height(36.dp).clip(RoundedCornerShape(2.dp)).background(Palette.Border))
+                    }
+                    PreviewPane(
+                        state = preview,
+                        wide = true,
+                        maximized = false,
+                        onToggleMaximize = { previewMax = true },
+                        onClose = { com.termfold.app.preview.Preview.close() },
+                        modifier = Modifier
+                            .width(total * previewFraction)
+                            .fillMaxHeight()
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.End + WindowInsetsSides.Bottom)),
+                    )
+                }
+            }
         }
+
+        // ---- The preview over everything (phone, or full screen on a tablet).
+        androidx.compose.animation.AnimatedVisibility(
+            visible = preview.open && (!windowWidth.isWide || previewMax),
+            enter = androidx.compose.animation.slideInVertically { it / 10 } + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.slideOutVertically { it / 10 } + androidx.compose.animation.fadeOut(),
+        ) {
+            BackHandler { if (previewMax) previewMax = false else com.termfold.app.preview.Preview.close() }
+            PreviewPane(
+                state = preview,
+                wide = windowWidth.isWide,
+                maximized = previewMax,
+                onToggleMaximize = if (windowWidth.isWide) ({ previewMax = false }) else null,
+                onClose = {
+                    previewMax = false
+                    com.termfold.app.preview.Preview.close()
+                },
+                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            )
+        }
+    }
     }
 
     if (newProject) {

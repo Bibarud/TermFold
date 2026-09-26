@@ -544,4 +544,90 @@ object TermFoldIcons {
             "M7,8.2 V15.8", "M17,10.2 C17,13.4 13.4,13.6 7,15.6",
         )
     }
+
+    /** A globe: the in-app browser. */
+    val Globe: ImageVector by lazy {
+        stroked(
+            "Globe",
+            "M12,3.8 A8.2,8.2 0 1,1 11.99,3.8",
+            "M3.8,12 H20.2",
+            "M12,3.8 C14.3,6 15.4,8.9 15.4,12 C15.4,15.1 14.3,18 12,20.2 C9.7,18 8.6,15.1 8.6,12 C8.6,8.9 9.7,6 12,3.8 Z",
+        )
+    }
+
+    /** The mirror of [Back]: go forward. */
+    val Forward: ImageVector by lazy {
+        stroked("Forward", "M9.4,5.6 L15.8,12 L9.4,18.4", width = 2f)
+    }
+
+    /** A phone outline: preview at phone width. */
+    val DevicePhone: ImageVector by lazy {
+        stroked(
+            "DevicePhone",
+            "M8.6,3.6 H15.4 C16.3,3.6 17,4.3 17,5.2 V18.8 C17,19.7 16.3,20.4 15.4,20.4 H8.6 C7.7,20.4 7,19.7 7,18.8 V5.2 C7,4.3 7.7,3.6 8.6,3.6 Z",
+            "M11,17.6 H13",
+        )
+    }
+
+    /** A monitor: preview at desktop width. */
+    val DeviceDesktop: ImageVector by lazy {
+        stroked(
+            "DeviceDesktop",
+            "M4.8,5 H19.2 C20,5 20.6,5.6 20.6,6.4 V14.6 C20.6,15.4 20,16 19.2,16 H4.8 C4,16 3.4,15.4 3.4,14.6 V6.4 C3.4,5.6 4,5 4.8,5 Z",
+            "M9.4,19.4 H14.6", "M12,16 V19.4",
+        )
+    }
+
+    /** Fit to the pane: arrows out to both sides. */
+    val DeviceFit: ImageVector by lazy {
+        stroked("DeviceFit", "M3.8,12 H20.2", "M7,8.8 L3.8,12 L7,15.2", "M17,8.8 L20.2,12 L17,15.2")
+    }
+
+    /** A camera: screenshot of the page. */
+    val Camera: ImageVector by lazy {
+        stroked(
+            "Camera",
+            "M4.6,8.2 C4.6,7.4 5.2,6.8 6,6.8 H8.2 L9.6,5 H14.4 L15.8,6.8 H18 C18.8,6.8 19.4,7.4 19.4,8.2 V17 C19.4,17.8 18.8,18.4 18,18.4 H6 C5.2,18.4 4.6,17.8 4.6,17 Z",
+            "M12,9.6 A3,3 0 1,1 11.99,9.6",
+        )
+    }
+
+    /** Lines of output with a prompt: the page's console. */
+    val Console: ImageVector by lazy {
+        stroked(
+            "Console",
+            "M5.2,4.8 H18.8 C19.6,4.8 20.2,5.4 20.2,6.2 V17.8 C20.2,18.6 19.6,19.2 18.8,19.2 H5.2 C4.4,19.2 3.8,18.6 3.8,17.8 V6.2 C3.8,5.4 4.4,4.8 5.2,4.8 Z",
+            "M7.4,9.4 L9.8,11.6 L7.4,13.8", "M11.6,14.2 H15.8",
+        )
+    }
+
+    /** Corners out: take the whole screen. */
+    val Maximize: ImageVector by lazy {
+        stroked("Maximize", "M4.6,9.4 V4.6 H9.4", "M14.6,4.6 H19.4 V9.4", "M19.4,14.6 V19.4 H14.6", "M9.4,19.4 H4.6 V14.6")
+    }
+
+    /** Corners in: back to the side pane. */
+    val Minimize: ImageVector by lazy {
+        stroked("Minimize", "M9.4,4.6 V9.4 H4.6", "M19.4,9.4 H14.6 V4.6", "M14.6,19.4 V14.6 H19.4", "M4.6,14.6 H9.4 V19.4")
+    }
+
+    /** A large and a small four-point spark: an agent at work. */
+    val Sparkle: ImageVector by lazy {
+        ImageVector.Builder("Sparkle", 24.dp, 24.dp, 24f, 24f)
+            .addPath(
+                pathData = addPathNodes(
+                    "M11,3 C11.6,8.2 13.3,9.9 18.5,10.5 C13.3,11.1 11.6,12.8 11,18 " +
+                        "C10.4,12.8 8.7,11.1 3.5,10.5 C8.7,9.9 10.4,8.2 11,3 Z",
+                ),
+                fill = SolidColor(Color.White),
+            )
+            .addPath(
+                pathData = addPathNodes(
+                    "M18.2,14.6 C18.45,16.4 19.1,17.05 20.9,17.3 C19.1,17.55 18.45,18.2 18.2,20 " +
+                        "C17.95,18.2 17.3,17.55 15.5,17.3 C17.3,17.05 17.95,16.4 18.2,14.6 Z",
+                ),
+                fill = SolidColor(Color.White),
+            )
+            .build()
+    }
 }

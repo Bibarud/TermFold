@@ -59,7 +59,58 @@ object ShellSetup {
             CLIS.forEach { (bin, pkg) ->
                 writeExecutable(File(rootfs, "usr/local/bin/$bin"), standIn(bin, pkg))
             }
+            installBrowserTools(context, rootfs)
         }.onFailure { Log.w(TAG, "Could not install the setup files", it) }
+    }
+
+    /** Where each agent reads its own global instructions; a marked section is kept up to date there. */
+    private val AGENT_NOTES = listOf(
+        "root/.codex/AGENTS.md",
+        "root/.gemini/GEMINI.md",
+        "root/.config/opencode/AGENTS.md",
+        "root/.pi/agent/AGENTS.md",
+        "root/.qwen/QWEN.md",
+    )
+
+    private const val NOTE_START = "<!-- termfold-browser:start -->"
+    private const val NOTE_END = "<!-- termfold-browser:end -->"
+
+    /**
+     * The agent side of the preview browser: the `termfold-browser` command (also an MCP server),
+     * a skill for Claude Code, and a short section in the other agents' global instructions.
+     * Chat sessions get the MCP server directly when they start.
+     */
+    private fun installBrowserTools(context: Context, rootfs: File) {
+        fun asset(name: String) = context.assets.open(name).use { it.readBytes().decodeToString() }.replace("\r\n", "\n")
+        writeExecutable(File(rootfs, BROWSER_TOOL.trimStart('/')), asset("termfold-browser.js"))
+        val skill = asset("termfold-browser-skill.md")
+        writeIfChanged(File(rootfs, "root/.claude/skills/termfold-browser/SKILL.md"), skill)
+        // The other agents get the same guide, without the skill header.
+        val note = NOTE_START + "\n" + skill.substringAfter("\n---\n").trim() + "\n" + NOTE_END + "\n"
+        AGENT_NOTES.forEach { path ->
+            val file = File(rootfs, path)
+            val current = if (file.isFile) file.readText() else ""
+            val updated = if (current.contains(NOTE_START) && current.contains(NOTE_END)) {
+                current.substringBefore(NOTE_START) + note + current.substringAfter(NOTE_END).trimStart('\n')
+            } else {
+                val gap = when {
+                    current.isEmpty() || current.endsWith("\n\n") -> ""
+                    current.endsWith("\n") -> "\n"
+                    else -> "\n\n"
+                }
+                current + gap + note
+            }
+            writeIfChanged(file, updated)
+        }
+    }
+
+    /** Guest path of the browser command; chat sessions start it as an MCP server. */
+    const val BROWSER_TOOL = "/usr/local/bin/termfold-browser"
+
+    private fun writeIfChanged(file: File, content: String) {
+        if (file.isFile && file.readText() == content) return
+        file.parentFile?.mkdirs()
+        file.writeText(content)
     }
 
     /**

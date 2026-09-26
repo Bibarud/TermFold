@@ -439,7 +439,7 @@ class AcpClient(
                 JSONObject()
                     .put("sessionId", sessionId)
                     .put("cwd", workspaceGuestDir)
-                    .put("mcpServers", JSONArray()),
+                    .put("mcpServers", mcpServers()),
                 timeoutMs = 120_000,
             )
         }.getOrNull()
@@ -470,12 +470,31 @@ class AcpClient(
         return true
     }
 
+    /**
+     * Tools TermFold gives every agent: its browser (open, read, click, type, screenshot...), as
+     * an MCP server the agent starts inside the guest. Only offered once Node is installed.
+     */
+    private fun mcpServers(): JSONArray {
+        val rootfs = com.termfold.app.shell.ShellPaths.rootfsDir(context)
+        val node = "/opt/node/bin/node"
+        val tool = com.termfold.app.shell.ShellSetup.BROWSER_TOOL
+        if (!java.io.File(rootfs, node.trimStart('/')).exists() || !java.io.File(rootfs, tool.trimStart('/')).isFile) return JSONArray()
+        com.termfold.app.preview.BrowserBridge.start(context)
+        return JSONArray().put(
+            JSONObject()
+                .put("name", "termfold-browser")
+                .put("command", node)
+                .put("args", JSONArray().put(tool).put("mcp"))
+                .put("env", JSONArray()),
+        )
+    }
+
     private suspend fun openSession() {
         val cwd = workspaceGuestDir
         val response = try {
             request(
                 "session/new",
-                JSONObject().put("cwd", cwd).put("mcpServers", JSONArray()),
+                JSONObject().put("cwd", cwd).put("mcpServers", mcpServers()),
             )
         } catch (failure: Throwable) {
             // The stream is gone or the agent stopped answering — a transport failure, not a

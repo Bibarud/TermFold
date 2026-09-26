@@ -60,6 +60,15 @@ app, proot scripts and broken package installs. TermFold is one app that does it
   app (a PDF for an agent, a dataset, screenshots). Export to any folder on the device, share, or
   open with another app. TermFold also appears in Android's own file picker, so other apps can
   open your project files directly; hidden files such as agent sign-ins are never exposed.
+- **A browser beside your work.** Preview dev servers (`localhost:5173`), the project's own
+  pages (served like a real server, reloading as files change) or any site, next to the chat on
+  a tablet. Phone and desktop widths, the page's console with a copy button, and screenshots to
+  the clipboard or the project. Running dev servers show up by themselves.
+- **Agents use the browser too.** Agents open pages, read them, click, type, fill forms, scroll,
+  take screenshots and read the console, with real taps and keys, while you watch an orange
+  frame and their pointer move. Chat agents get it as MCP tools automatically; in a shell it is
+  the `termfold-browser` command, with a skill for Claude Code and notes for Codex, Gemini,
+  OpenCode, pi and Qwen. Stop hands the browser back to you at any moment.
 - **Pick up where you left off.** Chats reopen their last session, and `/resume` (or the history
   button) lists the agent's earlier sessions in that folder to continue any of them.
 - **Keeps working while you're elsewhere.** Leave the app and TermFold floats as an Android
@@ -140,6 +149,7 @@ Other tools:
 - `tools/make-file-icons.py` bundles the file tree's icons from the `material-icon-theme` npm package
 - `tools/promo-v2/` is the launch film (Remotion, real device footage) and `music.py`, its original soundtrack
 - `tools/translations.py` writes the translated strings from one table
+- `app/src/main/assets/termfold-browser.js` is the agent side of the browser (command and MCP server); `termfold-browser-skill.md` is the guide installed for agents
 
 ## Limits
 

@@ -203,6 +203,7 @@ fun AgentSessionScreen(
             iconUrl = resolved.iconUrl,
             onBack = onBack,
             live = state.agentBusy,
+            previewDir = guestDir,
             filesOpen = filesOpen,
             onToggleFiles = onToggleFiles,
             onHistory = if (state.canResumeSessions && state.phase == AcpPhase.READY) {
@@ -353,6 +354,7 @@ private fun SessionHeader(
     onToggleFiles: (() -> Unit)? = null,
     onHistory: (() -> Unit)? = null,
     onRestart: (() -> Unit)? = null,
+    previewDir: String? = null,
 ) {
     Column {
         Row(
@@ -399,7 +401,10 @@ private fun SessionHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (onToggleFiles != null) FilesButton(open = filesOpen, onClick = onToggleFiles)
+            if (onToggleFiles != null) {
+                PreviewButton(previewDir)
+                FilesButton(open = filesOpen, onClick = onToggleFiles)
+            }
             if (onHistory != null) {
                 BareIconButton(
                     icon = TermFoldIcons.History,
