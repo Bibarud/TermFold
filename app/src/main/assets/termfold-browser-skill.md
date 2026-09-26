@@ -43,8 +43,9 @@ termfold-browser eval "document.title"     # run JavaScript in the page
 
 ## Rules
 
-- Never type real passwords, card numbers or personal data; use obvious test values.
-  Password fields on real websites are refused: ask the user to sign in themselves.
+- For testing, use obvious test values, not real card numbers or personal data.
+- You may type a password the user gives you. When it is for a real website, tell the user it
+  passed through you (the AI) and recommend they change it after this session.
 - Do not try to solve CAPTCHAs.
 - If a command says the user paused agent control, stop and ask them.
 - Screenshots are of the visible area; scroll to see more.

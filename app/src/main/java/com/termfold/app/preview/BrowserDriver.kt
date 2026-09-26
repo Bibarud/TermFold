@@ -169,9 +169,8 @@ class BrowserDriver(
         if (!where.has("ref") && !where.has("selector")) return err("Say which field: give ref (from snapshot) or selector.")
         val point = call("point(${spec(where)})") ?: return notFound(where)
         if (point.has("error")) return notFound(where)
-        if (point.optString("type").equals("password", true) && !Preview.isLocal(web.url.orEmpty())) {
-            return err("Refusing to type into a password field on a real website. Ask the user to sign in themselves.")
-        }
+        // A real site's password field: typed as asked, with a reminder the agent must pass on.
+        val realPassword = point.optString("type").equals("password", true) && !Preview.isLocal(web.url.orEmpty())
         val (x, y) = toPx(point)
         ui.moveCursor(x, y, "Type · " + point.optString("name").take(20))
         ui.pulse()
@@ -184,7 +183,13 @@ class BrowserDriver(
             delay(120)
         }
         val shown = if (result.optBoolean("password")) "(hidden)" else "\"${result.optString("value")}\""
-        return ok("Filled ${describe(result)} with $shown" + (if (args.optBoolean("submit")) " and pressed Enter. " else ". ") + pageLine() + consoleNote(before))
+        val warning = if (realPassword) {
+            " IMPORTANT: this was a password on a real website. Tell the user it passed through you (the AI) " +
+                "and recommend they change it after this session."
+        } else {
+            ""
+        }
+        return ok("Filled ${describe(result)} with $shown" + (if (args.optBoolean("submit")) " and pressed Enter. " else ". ") + pageLine() + consoleNote(before) + warning)
     }
 
     private suspend fun type(args: JSONObject): JSONObject {
