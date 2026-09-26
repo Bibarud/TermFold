@@ -278,4 +278,7 @@
     <string name="agent_browser_paused">Browser di tangan Anda. Agen dijeda.</string>
     <string name="agent_browser_resume">Biarkan agen lanjut</string>
     <string name="preview_minimize">Perkecil</string>
+    <string name="acp_history_search">Cari sesi</string>
+    <string name="acp_history_no_match">Tidak ada sesi yang cocok dengan “%1$s”</string>
+    <string name="acp_history_delete_confirm">Hapus sesi ini?</string>
 </resources>

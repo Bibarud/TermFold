@@ -278,4 +278,7 @@
     <string name="agent_browser_paused">Tienes el navegador. El agente está en pausa.</string>
     <string name="agent_browser_resume">Dejar que el agente siga</string>
     <string name="preview_minimize">Minimizar</string>
+    <string name="acp_history_search">Buscar sesiones</string>
+    <string name="acp_history_no_match">Ninguna sesión coincide con “%1$s”</string>
+    <string name="acp_history_delete_confirm">¿Eliminar esta sesión?</string>
 </resources>

@@ -2005,7 +2005,10 @@ private fun PastSessionsDialog(
     currentId: String?,
     onDismiss: () -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     var sessions by remember { mutableStateOf<List<com.termfold.app.acp.AcpPastSession>?>(null) }
+    var query by remember { mutableStateOf("") }
+    var confirming by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { sessions = client.listPastSessions() }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2013,7 +2016,7 @@ private fun PastSessionsDialog(
         shape = RoundedCornerShape(20.dp),
         title = { Text(stringResource(R.string.acp_history_title), style = MaterialTheme.typography.titleMedium, color = Palette.Text) },
         text = {
-            Column(Modifier.heightIn(max = 460.dp)) {
+            Column(Modifier.heightIn(max = 520.dp)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2029,6 +2032,11 @@ private fun PastSessionsDialog(
                 }
                 Spacer(Modifier.height(10.dp))
                 val list = sessions
+                if (!list.isNullOrEmpty()) {
+                    SessionSearch(query, onQuery = { query = it })
+                    Spacer(Modifier.height(8.dp))
+                }
+                val shown = list?.filter { query.isBlank() || it.title.contains(query.trim(), ignoreCase = true) || it.sessionId.startsWith(query.trim()) }
                 when {
                     list == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
@@ -2039,30 +2047,78 @@ private fun PastSessionsDialog(
                         color = Palette.TextFaint,
                         modifier = Modifier.padding(8.dp),
                     )
+                    shown.isNullOrEmpty() -> Text(
+                        stringResource(R.string.acp_history_no_match, query.trim()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Palette.TextFaint,
+                        modifier = Modifier.padding(8.dp),
+                    )
                     else -> LazyColumn {
-                        items(list.size) { i ->
-                            val past = list[i]
+                        items(shown, key = { it.sessionId }) { past ->
                             val current = past.sessionId == currentId
-                            Column(
+                            val asking = confirming == past.sessionId
+                            Row(
                                 modifier = Modifier
+                                    .animateItem()
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable(enabled = !current) { client.openPastSession(past.sessionId); onDismiss() }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    .background(if (asking) Palette.Pink.copy(alpha = 0.08f) else Color.Transparent)
+                                    .clickable(enabled = !current && !asking) { client.openPastSession(past.sessionId); onDismiss() }
+                                    .padding(start = 12.dp, end = 2.dp, top = 8.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Text(
-                                    text = past.title.ifBlank { stringResource(R.string.acp_history_untitled) },
-                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
-                                    color = if (current) Palette.Accent else Palette.Text,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                val meta = listOfNotNull(
-                                    relativeTime(past.updatedAt).ifBlank { null },
-                                    if (current) stringResource(R.string.acp_history_current) else null,
-                                ).joinToString(" · ")
-                                if (meta.isNotBlank()) {
-                                    Text(meta, style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint)
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (asking) stringResource(R.string.acp_history_delete_confirm) else past.title.ifBlank { stringResource(R.string.acp_history_untitled) },
+                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp),
+                                        color = when {
+                                            asking -> Palette.Pink
+                                            current -> Palette.Accent
+                                            else -> Palette.Text
+                                        },
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    val meta = if (asking) {
+                                        past.title.ifBlank { stringResource(R.string.acp_history_untitled) }
+                                    } else {
+                                        listOfNotNull(
+                                            relativeTime(past.updatedAt).ifBlank { null },
+                                            if (current) stringResource(R.string.acp_history_current) else null,
+                                        ).joinToString(" · ")
+                                    }
+                                    if (meta.isNotBlank()) {
+                                        Text(meta, style = MaterialTheme.typography.labelSmall, color = Palette.TextFaint, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                                if (asking) {
+                                    Text(
+                                        stringResource(R.string.action_cancel),
+                                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                        color = Palette.TextDim,
+                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { confirming = null }.padding(horizontal = 10.dp, vertical = 8.dp),
+                                    )
+                                    Text(
+                                        stringResource(R.string.files_delete),
+                                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                                        color = Palette.Pink,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                confirming = null
+                                                sessions = sessions?.filterNot { it.sessionId == past.sessionId }
+                                                scope.launch { client.deletePastSession(past.sessionId) }
+                                            }
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    )
+                                } else if (!current) {
+                                    BareIconButton(
+                                        icon = TermFoldIcons.Trash,
+                                        contentDescription = stringResource(R.string.files_delete),
+                                        onClick = { confirming = past.sessionId },
+                                        tint = Palette.TextFaint,
+                                        size = 36,
+                                    )
                                 }
                             }
                         }
@@ -2072,6 +2128,38 @@ private fun PastSessionsDialog(
         },
         confirmButton = {},
     )
+}
+
+@Composable
+private fun SessionSearch(query: String, onQuery: (String) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Palette.Bg)
+            .padding(start = 12.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(TermFoldIcons.Search, null, tint = Palette.TextFaint, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(8.dp))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.isEmpty()) {
+                Text(stringResource(R.string.acp_history_search), style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp), color = Palette.TextFaint, maxLines = 1)
+            }
+            androidx.compose.foundation.text.BasicTextField(
+                value = query,
+                onValueChange = onQuery,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp, color = Palette.Text),
+                cursorBrush = SolidColor(Palette.Accent),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        if (query.isNotEmpty()) {
+            BareIconButton(icon = TermFoldIcons.Close, contentDescription = stringResource(R.string.action_cancel), onClick = { onQuery("") }, tint = Palette.TextFaint, size = 32)
+        }
+    }
 }
 
 /** "3 min ago", "yesterday", "12 Sep" from an ISO-8601 timestamp; blank if unparseable. */

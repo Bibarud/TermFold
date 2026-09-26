@@ -278,4 +278,7 @@
     <string name="agent_browser_paused">浏览器由你控制，代理已暂停。</string>
     <string name="agent_browser_resume">让代理继续</string>
     <string name="preview_minimize">最小化</string>
+    <string name="acp_history_search">搜索会话</string>
+    <string name="acp_history_no_match">没有与“%1$s”匹配的会话</string>
+    <string name="acp_history_delete_confirm">删除此会话？</string>
 </resources>

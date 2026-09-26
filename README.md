@@ -71,7 +71,8 @@ app, proot scripts and broken package installs. TermFold is one app that does it
   the `termfold-browser` command, with a skill for Claude Code and notes for Codex, Gemini,
   OpenCode, pi and Qwen. Stop hands the browser back to you at any moment.
 - **Pick up where you left off.** Chats reopen their last session, and `/resume` (or the history
-  button) lists the agent's earlier sessions in that folder to continue any of them.
+  button) lists the agent's earlier sessions in that folder to continue any of them, with search,
+  and a delete button that also removes the saved conversation.
 - **Keeps working while you're elsewhere.** Leave the app and TermFold floats as an Android
   bubble that opens right where you were. Agents keep running in the background, and you get a
   notification when one finishes, needs permission, or a long command in a shell ends.

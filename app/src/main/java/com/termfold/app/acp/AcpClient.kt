@@ -372,6 +372,12 @@ class AcpClient(
 
     private val prefs get() = context.getSharedPreferences("acp_sessions", Context.MODE_PRIVATE)
 
+    /** Where the agents keep their conversations, under the guest home. */
+    private val sessionStores = listOf(
+        ".claude/projects", ".codex/sessions", ".codex/archived_sessions", ".pi/agent/sessions",
+        ".gemini/tmp", ".local/share/opencode/storage", ".qwen/tmp",
+    )
+
     /** The agent session this chat last used, so it can be reopened next time. */
     private fun rememberedSessionId(): String? = prefs.getString(sessionKey, null)
 
@@ -399,7 +405,54 @@ class AcpClient(
             }
             cursor = result.text("nextCursor").ifBlank { null } ?: break
         }
-        found.distinctBy { it.sessionId }
+        val deleted = deletedIds()
+        found.distinctBy { it.sessionId }.filter { it.sessionId !in deleted }
+    }
+
+    // ---- Deleting earlier sessions ----------------------------------------------------------
+
+    private val deletedPrefs get() = context.getSharedPreferences("acp_deleted_sessions", Context.MODE_PRIVATE)
+
+    private fun deletedKey() = agent.id + "|" + workspaceGuestDir
+
+    private fun deletedIds(): Set<String> = deletedPrefs.getStringSet(deletedKey(), emptySet()).orEmpty()
+
+    /**
+     * Deletes an earlier session: it leaves this list for good, and its saved conversation is
+     * removed. ACP has no standard delete, so the agent is asked (some support it) and the
+     * transcript files the known agents keep in the guest are removed, matched by the full
+     * session id. The session in use cannot be deleted.
+     */
+    suspend fun deletePastSession(sessionId: String): Boolean = withContext(Dispatchers.IO) {
+        if (sessionId.isBlank() || sessionId == agentSessionId) return@withContext false
+        deletedPrefs.edit().putStringSet(deletedKey(), deletedIds() + sessionId).apply()
+        runCatching { request("session/delete", JSONObject().put("sessionId", sessionId), timeoutMs = 5_000) }
+        // Only ids long enough to be unique (UUIDs and the like) are matched against file names.
+        if (sessionId.length >= 12) {
+            val home = java.io.File(com.termfold.app.shell.ShellPaths.rootfsDir(context), "root")
+            sessionStores.forEach { store -> removeMatching(java.io.File(home, store), sessionId) }
+        }
+        true
+    }
+
+    private fun removeMatching(root: java.io.File, id: String) {
+        if (!root.isDirectory) return
+        var seen = 0
+        val stack = ArrayDeque<Pair<java.io.File, Int>>()
+        stack.add(root to 0)
+        while (stack.isNotEmpty() && seen < 50_000) {
+            val (dir, depth) = stack.removeLast()
+            val kids = dir.listFiles() ?: continue
+            for (f in kids) {
+                seen++
+                val link = java.nio.file.Files.isSymbolicLink(f.toPath())
+                if (f.name.contains(id)) {
+                    if (f.isDirectory && !link) f.deleteRecursively() else f.delete()
+                } else if (f.isDirectory && !link && depth < 7) {
+                    stack.add(f to depth + 1)
+                }
+            }
+        }
     }
 
     /** Reopens an earlier session chosen by the user, replacing the current conversation. */

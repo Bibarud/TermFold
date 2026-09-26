@@ -309,4 +309,7 @@
     <string name="agent_browser_paused">You have the browser. The agent is paused.</string>
     <string name="agent_browser_resume">Let agent continue</string>
     <string name="preview_minimize">Minimize</string>
+    <string name="acp_history_search">Search sessions</string>
+    <string name="acp_history_no_match">No session matches “%1$s”</string>
+    <string name="acp_history_delete_confirm">Delete this session?</string>
 </resources>

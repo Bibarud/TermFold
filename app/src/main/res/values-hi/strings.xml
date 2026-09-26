@@ -278,4 +278,7 @@
     <string name="agent_browser_paused">ब्राउज़र आपके पास है। एजेंट रुका हुआ है।</string>
     <string name="agent_browser_resume">एजेंट को जारी रखने दें</string>
     <string name="preview_minimize">छोटा करें</string>
+    <string name="acp_history_search">सेशन खोजें</string>
+    <string name="acp_history_no_match">“%1$s” से कोई सेशन मेल नहीं खाता</string>
+    <string name="acp_history_delete_confirm">यह सेशन हटाएँ?</string>
 </resources>
