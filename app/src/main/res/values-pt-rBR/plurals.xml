@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="running_title">
+        <item quantity="one">%d sessão em execução</item>
+        <item quantity="other">%d sessões em execução</item>
+    </plurals>
+    <plurals name="running_working">
+        <item quantity="one">%d trabalhando agora</item>
+        <item quantity="other">%d trabalhando agora</item>
+    </plurals>
+</resources>

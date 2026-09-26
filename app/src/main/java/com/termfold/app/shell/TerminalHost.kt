@@ -112,6 +112,9 @@ object TerminalHost : TerminalHostCallbacks {
     var onTap: (() -> Unit)? = null
     var onBackPressed: (() -> Unit)? = null
 
+    /** Ctrl+Shift+F in the terminal: the screen opens its find bar. */
+    var onFindRequested: (() -> Unit)? = null
+
     /** Terminal text sizes, in sp. */
     const val MIN_FONT_SP = 7
     const val MAX_FONT_SP = 28
@@ -227,6 +230,18 @@ object TerminalHost : TerminalHostCallbacks {
         if (currentKey == key) {
             currentKey = null
             bridge = null
+        }
+    }
+
+    /**
+     * The colour scheme changed: every stored session goes back to the (new) default colours,
+     * and the visible terminal repaints with the new background.
+     */
+    fun recolor() {
+        entries.values.forEach { entry -> runCatching { entry.session.emulator?.mColors?.reset() } }
+        currentView?.let { view ->
+            view.setBackgroundColor(ShellTheme.windowBackground)
+            view.onScreenUpdated()
         }
     }
 

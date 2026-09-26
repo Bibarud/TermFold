@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="running_title">
+        <item quantity="one">%d सेशन चल रहा है</item>
+        <item quantity="other">%d सेशन चल रहे हैं</item>
+    </plurals>
+    <plurals name="running_working">
+        <item quantity="one">%d अभी काम कर रहा है</item>
+        <item quantity="other">%d अभी काम कर रहे हैं</item>
+    </plurals>
+</resources>

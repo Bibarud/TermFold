@@ -1,6 +1,11 @@
 package com.termfold.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.withStyle
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -80,6 +85,10 @@ fun SettingsScreen(
                     onRepairShell = onRepairShell,
                 )
             }
+
+            item { Spacer(Modifier.height(20.dp)) }
+            item { GroupLabel(stringResource(R.string.settings_terminal)) }
+            item { ThemePicker() }
 
             item { Spacer(Modifier.height(20.dp)) }
             item { GroupLabel(stringResource(R.string.settings_background)) }
@@ -283,6 +292,86 @@ private fun SwitchRow(
                         .background(Palette.Accent.copy(alpha = 0.22f))
                         .clickable(onClick = onAction)
                         .padding(horizontal = 12.dp, vertical = 7.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Terminal colour schemes, each shown as a small live preview of a shell. */
+@Composable
+private fun ThemePicker() {
+    val context = LocalContext.current
+    val current by com.termfold.app.shell.ShellTheme.current.collectAsState()
+    androidx.compose.foundation.lazy.LazyRow(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(vertical = 2.dp),
+    ) {
+        items(com.termfold.app.shell.ShellTheme.THEMES.size) { i ->
+            val theme = com.termfold.app.shell.ShellTheme.THEMES[i]
+            ThemeSwatch(theme, selected = theme.id == current.id) {
+                com.termfold.app.shell.ShellTheme.select(context, theme)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeSwatch(theme: com.termfold.app.shell.ShellTheme.Theme, selected: Boolean, onClick: () -> Unit) {
+    val bg = androidx.compose.ui.graphics.Color(theme.background)
+    fun ansi(i: Int) = androidx.compose.ui.graphics.Color(theme.ansi[i])
+    val fg = androidx.compose.ui.graphics.Color(theme.foreground)
+    val mono = MaterialTheme.typography.bodySmall.copy(fontFamily = Mono, fontSize = 11.sp, lineHeight = 15.sp)
+    Column(
+        modifier = Modifier
+            .width(176.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Palette.Card)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) Palette.Accent else Palette.BorderSoft,
+                shape = RoundedCornerShape(16.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(8.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(bg)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        ) {
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = ansi(2))) { append("~/app") }
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = fg)) { append(" $ ls") }
+                },
+                style = mono,
+            )
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = ansi(4))) { append("src ") }
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = ansi(6))) { append("docs ") }
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = fg)) { append("main.py") }
+                },
+                style = mono,
+            )
+            Text(
+                androidx.compose.ui.text.buildAnnotatedString {
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = ansi(1))) { append("error ") }
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = ansi(3))) { append("warn ") }
+                    withStyle(androidx.compose.ui.text.SpanStyle(color = ansi(5))) { append("ok") }
+                },
+                style = mono,
+            )
+        }
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(theme.name, style = MaterialTheme.typography.labelLarge, color = Palette.Text, modifier = Modifier.weight(1f))
+            if (selected) {
+                androidx.compose.material3.Icon(
+                    com.termfold.app.ui.theme.TermFoldIcons.Check, null,
+                    tint = Palette.Accent, modifier = Modifier.size(16.dp),
                 )
             }
         }

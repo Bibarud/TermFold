@@ -1116,7 +1116,7 @@ class AcpClient(
             }
         }
         update.optJSONObject("rawInput")?.let { input ->
-            listOf("path", "file_path", "filePath", "file", "filename", "target_file", "notebook_path")
+            PATH_KEYS
                 .mapNotNull { key -> input.optString(key).takeIf { it.isNotBlank() } }
                 .forEach(paths::add)
             input.optJSONArray("paths")?.let { list ->
@@ -1129,7 +1129,40 @@ class AcpClient(
                 if (entry.optString("type") == "diff") entry.optString("path").takeIf { it.isNotBlank() }?.let(paths::add)
             }
         }
+        // A replayed session (session/load) often has no input at all: agents such as pi-acp
+        // replay only the tool's result. The path can still be recovered from that result,
+        // either as a field of the raw output or from its message ("Successfully wrote 120
+        // bytes to snake.html").
+        if (paths.isEmpty()) {
+            update.opt("rawOutput")?.let { collectPathFields(it, paths, depth = 0) }
+        }
+        if (paths.isEmpty()) {
+            val text = toolContentText(update.optJSONArray("content")) + "\n" + rawOutputText(update.opt("rawOutput"))
+            RESULT_PATH.find(text)?.groupValues?.get(1)?.trimEnd('.', ',', ':', ')', '\'', '"')
+                ?.takeIf { it.isNotBlank() && it.length < 300 }
+                ?.let(paths::add)
+        }
         return paths.toList()
+    }
+
+    private fun collectPathFields(value: Any?, out: MutableSet<String>, depth: Int) {
+        if (depth > 3 || out.size >= 4) return
+        when (value) {
+            is JSONObject -> {
+                PATH_KEYS.forEach { key -> value.optString(key).takeIf { it.isNotBlank() && '\n' !in it }?.let(out::add) }
+                value.keys().forEach { key -> collectPathFields(value.opt(key), out, depth + 1) }
+            }
+            is JSONArray -> for (i in 0 until minOf(value.length(), 8)) collectPathFields(value.opt(i), out, depth + 1)
+        }
+    }
+
+    /** The text parts of a raw tool result (pi-style `{content:[{type:"text",text}]}`). */
+    private fun rawOutputText(value: Any?): String = when (value) {
+        is JSONObject -> value.optJSONArray("content")?.let { arr ->
+            List(arr.length()) { arr.optJSONObject(it)?.optString("text").orEmpty() }.joinToString("\n")
+        }.orEmpty()
+        is String -> value
+        else -> ""
     }
 
     /**
@@ -1173,3 +1206,15 @@ class AcpClient(
         )
     }
 }
+
+/** Field names agents use for the file a tool works on. */
+private val PATH_KEYS = listOf("path", "file_path", "filePath", "file", "filename", "target_file", "notebook_path")
+
+/**
+ * A file named in a tool's result message: "Successfully wrote 120 bytes to snake.html",
+ * "Successfully replaced text in src/app.ts", "Created docs/notes.md", "Updated file: a.py".
+ */
+internal val RESULT_PATH = Regex(
+    """(?:wrote(?:\s+\d+\s+\w+)?\s+to|replaced\s+\S+(?:\s+\S+)?\s+in|(?:created|updated|edited|modified|deleted|wrote)(?:\s+file)?:?)\s+[`'"]?([^\s`'"]+\.[A-Za-z0-9]{1,8}|/[^\s`'"]+)""",
+    RegexOption.IGNORE_CASE,
+)

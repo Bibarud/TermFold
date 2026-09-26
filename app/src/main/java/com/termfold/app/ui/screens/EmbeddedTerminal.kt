@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -44,8 +45,13 @@ fun EmbeddedTerminal(
     modifier: Modifier = Modifier,
     fontSizeSp: Int,
     onReady: (TerminalView) -> Unit = {},
+    highlights: List<TermMatch> = emptyList(),
+    currentHighlight: Int = -1,
 ) {
+    var liveView by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<TerminalView?>(null) }
     val generation by TerminalHost.generation.collectAsStateWithLifecycle()
+    val theme by ShellTheme.current.collectAsStateWithLifecycle()
+    val themeBackground = androidx.compose.ui.graphics.Color(theme.background)
     // The window this terminal is in. The main window and the bubble can both show a terminal;
     // whichever is resumed claims the display (see TerminalHost.claimDisplay).
     val owner = androidx.compose.ui.platform.LocalContext.current.findActivity()
@@ -62,12 +68,12 @@ fun EmbeddedTerminal(
     // Recreating the view on a generation change is what lets a new session be displayed: an
     // existing view cannot be repointed at a different session reliably.
     key(generation) {
+      // The gutter is drawn in the same background colour, so the shell content sits with
+      // comfortable side padding instead of touching the screen edges.
+      Box(modifier = modifier.fillMaxSize().background(themeBackground)) {
         AndroidView(
-            modifier = modifier
+            modifier = Modifier
                 .fillMaxSize()
-                // The gutter is drawn in the same background colour, so the shell content sits
-                // with comfortable side padding instead of touching the screen edges.
-                .background(Palette.TermBg)
                 .padding(horizontal = 12.dp),
             factory = { context ->
                 TerminalView(context, null).apply {
@@ -92,6 +98,7 @@ fun EmbeddedTerminal(
                     TerminalHost.currentBridge?.let { setTerminalViewClient(it) }
                     TerminalHost.session?.let { attachSession(it) }
                     if (ownsDisplay()) TerminalHost.currentView = this
+                    liveView = this
                     onReady(this)
                 }
             },
@@ -107,9 +114,18 @@ fun EmbeddedTerminal(
                 TerminalHost.session?.let { view.attachSession(it) }
                 view.setTextSize(spToPx(view.context, fontSizeSp))
                 if (ownsDisplay()) TerminalHost.currentView = view
+                liveView = view
                 onReady(view)
             },
         )
+        // Search matches, drawn over the text in the same padded box as the terminal.
+        TerminalHighlights(
+            view = liveView,
+            matches = highlights,
+            current = currentHighlight,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+      }
     }
 
     // The redraw hook. The session writes from a background thread and only notifies its client,

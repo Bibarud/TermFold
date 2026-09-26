@@ -120,8 +120,38 @@ fun TerminalScreen(
 
     // The UI hooks are re-registered on every entry, because the previous screen may have left
     // them pointing at a Composable that no longer exists.
+    // Search through the scrollback (header button or Ctrl+Shift+F).
+    var findOpen by remember { mutableStateOf(false) }
+    val findQuery = androidx.compose.foundation.text.input.rememberTextFieldState()
+    var matches by remember { mutableStateOf<List<TermMatch>>(emptyList()) }
+    var currentMatch by remember { mutableStateOf(-1) }
+    fun goTo(index: Int) {
+        val view = terminalView ?: return
+        if (matches.isEmpty()) return
+        currentMatch = (index + matches.size) % matches.size
+        scrollToMatch(view, matches[currentMatch])
+    }
+    fun closeFind() {
+        findOpen = false
+        matches = emptyList()
+        currentMatch = -1
+        terminalView?.let { scrollToBottom(it); requestTerminalFocus(it, keyboard) }
+    }
+    LaunchedEffect(findOpen, generation) {
+        if (!findOpen) return@LaunchedEffect
+        androidx.compose.runtime.snapshotFlow { findQuery.text.toString() }.collect { q ->
+            kotlinx.coroutines.delay(120)
+            val view = terminalView ?: return@collect
+            matches = findInTerminal(view, q)
+            // Start from the newest match, the way terminals search upward from the prompt.
+            if (matches.isEmpty()) currentMatch = -1 else goTo(matches.lastIndex)
+        }
+    }
+
     DisposableEffect(sessionKey) {
         val host = TerminalHost
+        val find = { findOpen = true }
+        host.onFindRequested = find
         val tap = { requestTerminalFocus(terminalView, keyboard) }
         val back = { onBack() }
         host.onTap = tap
@@ -129,6 +159,7 @@ fun TerminalScreen(
         onDispose {
             // The bubble and the main window can both have this screen; only clear our own hooks.
             if (host.onTap === tap) host.onTap = null
+            if (host.onFindRequested === find) host.onFindRequested = null
             if (host.onBackPressed === back) host.onBackPressed = null
             // The keyboard was raised for the terminal, so it leaves with it. Otherwise it stays
             // up over the folder screen and covers half of the session list.
@@ -155,10 +186,23 @@ fun TerminalScreen(
             exited = exited,
             filesOpen = filesOpen,
             onToggleFiles = onToggleFiles,
+            findOpen = findOpen,
+            onToggleFind = { if (findOpen) closeFind() else findOpen = true },
             onBack = onBack,
             onRestart = onRestart,
             onFontSize = { steps -> TerminalHost.onFontStep(steps) },
         )
+
+        if (findOpen) {
+            TerminalFindBar(
+                state = findQuery,
+                count = matches.size,
+                current = currentMatch,
+                onPrevious = { goTo(currentMatch - 1) },
+                onNext = { goTo(currentMatch + 1) },
+                onClose = ::closeFind,
+            )
+        }
 
         Box(
             modifier = Modifier
@@ -169,6 +213,8 @@ fun TerminalScreen(
                 modifier = Modifier.fillMaxSize(),
                 fontSizeSp = fontSize,
                 onReady = { view -> terminalView = view },
+                highlights = if (findOpen) matches else emptyList(),
+                currentHighlight = currentMatch,
             )
         }
 
@@ -228,6 +274,8 @@ private fun TerminalHeader(
     exited: Boolean,
     filesOpen: Boolean,
     onToggleFiles: () -> Unit,
+    findOpen: Boolean,
+    onToggleFind: () -> Unit,
     onBack: () -> Unit,
     onRestart: () -> Unit,
     onFontSize: (Int) -> Unit,
@@ -262,6 +310,12 @@ private fun TerminalHeader(
                 maxLines = 1,
             )
         }
+        HeaderToggle(
+            icon = TermFoldIcons.Search,
+            label = stringResource(R.string.terminal_find),
+            active = findOpen,
+            onClick = onToggleFind,
+        )
         FilesButton(open = filesOpen, onClick = onToggleFiles)
         Spacer(Modifier.size(4.dp))
         PillButton(

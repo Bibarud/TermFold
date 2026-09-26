@@ -216,6 +216,12 @@ class TerminalBridge(
         if (keyCode == KeyEvent.KEYCODE_V && event.isCtrlPressed && !event.isAltPressed) {
             return TerminalHost.paste(context)
         }
+        // Ctrl+Shift+F opens search. Plain Ctrl+F stays with the shell and TUIs (forward-char,
+        // page-down in less), as in desktop terminals.
+        if (keyCode == KeyEvent.KEYCODE_F && event.isCtrlPressed && event.isShiftPressed) {
+            main.post { TerminalHost.onFindRequested?.invoke() }
+            return true
+        }
         return false
     }
 

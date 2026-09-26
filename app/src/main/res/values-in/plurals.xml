@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <plurals name="running_title">
+        <item quantity="other">%d sesi berjalan</item>
+    </plurals>
+    <plurals name="running_working">
+        <item quantity="other">%d sedang bekerja</item>
+    </plurals>
+</resources>

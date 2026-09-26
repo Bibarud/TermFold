@@ -408,4 +408,39 @@ object TermFoldIcons {
             "M13.7,10.5 V16",
         )
     }
+
+    val ChevronUp: ImageVector by lazy { stroked("ChevronUp", "M6.4,14.2 L12,8.6 L17.6,14.2") }
+
+    /** A page with a plus: new file. */
+    val FilePlus: ImageVector by lazy {
+        stroked(
+            "FilePlus",
+            "M14,3.8 H7.2 C6.1,3.8 5.2,4.7 5.2,5.8 V18.2 C5.2,19.3 6.1,20.2 7.2,20.2 H16.8 C17.9,20.2 18.8,19.3 18.8,18.2 V8.6 Z",
+            "M14,3.8 V8.6 H18.8",
+            "M12,11.4 V16.6",
+            "M9.4,14 H14.6",
+        )
+    }
+
+    /** A folder with a plus: new folder. */
+    val FolderPlus: ImageVector by lazy {
+        stroked(
+            "FolderPlus",
+            "M3.8,6.6 C3.8,5.6 4.6,4.8 5.6,4.8 H9 L10.8,6.8 H18.4 C19.4,6.8 20.2,7.6 20.2,8.6 V17.4 " +
+                "C20.2,18.4 19.4,19.2 18.4,19.2 H5.6 C4.6,19.2 3.8,18.4 3.8,17.4 Z",
+            "M12,10.2 V15.8",
+            "M9.2,13 H14.8",
+        )
+    }
+
+    /** An arrow into a folder: move. */
+    val MoveTo: ImageVector by lazy {
+        stroked(
+            "MoveTo",
+            "M3.8,6.6 C3.8,5.6 4.6,4.8 5.6,4.8 H9 L10.8,6.8 H18.4 C19.4,6.8 20.2,7.6 20.2,8.6 V17.4 " +
+                "C20.2,18.4 19.4,19.2 18.4,19.2 H5.6 C4.6,19.2 3.8,18.4 3.8,17.4 Z",
+            "M8.4,13 H15.2",
+            "M12.8,10.6 L15.2,13 L12.8,15.4",
+        )
+    }
 }

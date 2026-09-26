@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -128,6 +130,13 @@ fun FilesWorkspace(
                 root = root,
                 selected = editing,
                 onOpen = ::openFile,
+                onMoved = { from, to ->
+                    // The open file (or the folder holding it) was renamed or moved: follow it.
+                    val open = editing
+                    if (open != null && (open == from || open.path.startsWith(from.path + File.separator))) {
+                        editing = File(to, open.path.removePrefix(from.path).trimStart(File.separatorChar)).takeIf { open != from } ?: to
+                    }
+                },
                 onDeleted = { gone ->
                     // A deleted file (or one inside a deleted folder) cannot stay open.
                     val open = editing
@@ -300,6 +309,7 @@ private fun FileTree(
     root: File?,
     selected: File?,
     onOpen: (File) -> Unit,
+    onMoved: (from: File, to: File) -> Unit,
     onDeleted: (File) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -351,6 +361,30 @@ private fun FileTree(
     var confirmDelete by remember { mutableStateOf<File?>(null) }
     var deleteError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    // Create / rename / move. For a folder, new items go inside it; for a file, beside it.
+    var naming by remember { mutableStateOf<Naming?>(null) }
+    var moving by remember { mutableStateOf<File?>(null) }
+    var opError by remember { mutableStateOf<String?>(null) }
+    fun afterChange(showDir: File?) {
+        if (showDir != null && root != null && showDir.path != root.path && showDir.path.startsWith(root.path)) {
+            // Make sure the folder that changed is open, so the result is visible.
+            var d: File? = showDir
+            while (d != null && d.path != root.path) { expanded.add(d.path); d = d.parentFile }
+        }
+        expandedVersion++
+        refreshTick++
+    }
+    fun runOp(op: () -> File, done: (File) -> Unit) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching(op) }
+            result.onSuccess { made ->
+                opError = null
+                naming = null
+                moving = null
+                done(made)
+            }.onFailure { opError = it.message ?: it.javaClass.simpleName }
+        }
+    }
 
     Column(modifier) {
         Row(
@@ -371,6 +405,22 @@ private fun FileTree(
                     color = Palette.TextFaint,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (root != null) {
+                BareIconButton(
+                    icon = TermFoldIcons.FilePlus,
+                    contentDescription = stringResource(R.string.files_new_file),
+                    onClick = { opError = null; naming = Naming.NewFile(root) },
+                    tint = Palette.TextDim,
+                    size = 36,
+                )
+                BareIconButton(
+                    icon = TermFoldIcons.FolderPlus,
+                    contentDescription = stringResource(R.string.files_new_folder),
+                    onClick = { opError = null; naming = Naming.NewFolder(root) },
+                    tint = Palette.TextDim,
+                    size = 36,
                 )
             }
             BareIconButton(
@@ -408,6 +458,10 @@ private fun FileTree(
                         onLongClick = { menuFor = row.file },
                         onDismissMenu = { menuFor = null },
                         onDelete = { menuFor = null; confirmDelete = row.file },
+                        onNewFile = { menuFor = null; opError = null; naming = Naming.NewFile(if (row.isDir) row.file else row.file.parentFile ?: row.file) },
+                        onNewFolder = { menuFor = null; opError = null; naming = Naming.NewFolder(if (row.isDir) row.file else row.file.parentFile ?: row.file) },
+                        onRename = { menuFor = null; opError = null; naming = Naming.Rename(row.file) },
+                        onMove = { menuFor = null; opError = null; moving = row.file },
                         onClick = {
                             if (row.isDir) {
                                 if (!expanded.remove(row.file.path)) expanded.add(row.file.path)
@@ -449,7 +503,218 @@ private fun FileTree(
             },
         )
     }
+
+    naming?.let { n ->
+        NameDialog(
+            naming = n,
+            error = opError,
+            onConfirm = { name ->
+                when (n) {
+                    is Naming.NewFile -> runOp({ createEntry(n.inDir, name, folder = false) }) { made ->
+                        afterChange(made.parentFile)
+                        onOpen(made)
+                    }
+                    is Naming.NewFolder -> runOp({ createEntry(n.inDir, name, folder = true) }) { made ->
+                        afterChange(made)
+                    }
+                    is Naming.Rename -> runOp({ moveEntry(n.target, n.target.parentFile ?: n.target, name) }) { made ->
+                        if (n.target.path in expanded) { expanded.remove(n.target.path); expanded.add(made.path) }
+                        afterChange(made.parentFile)
+                        onMoved(n.target, made)
+                    }
+                }
+            },
+            onDismiss = { naming = null; opError = null },
+        )
+    }
+
+    moving?.let { target ->
+        if (root != null) {
+            MoveDialog(
+                root = root,
+                target = target,
+                error = opError,
+                onPick = { dest ->
+                    runOp({ moveEntry(target, dest, target.name) }) { made ->
+                        expanded.removeAll { it == target.path || it.startsWith(target.path + File.separator) }
+                        afterChange(dest)
+                        onMoved(target, made)
+                    }
+                },
+                onDismiss = { moving = null; opError = null },
+            )
+        }
+    }
 }
+
+/** What the name dialog is for. */
+private sealed interface Naming {
+    data class NewFile(val inDir: File) : Naming
+    data class NewFolder(val inDir: File) : Naming
+    data class Rename(val target: File) : Naming
+}
+
+/** Checks a single file or folder name typed by the user; null when it is fine. */
+private fun badName(name: String): Int? = when {
+    name.isBlank() -> R.string.files_name_empty
+    name == "." || name == ".." || '/' in name || '\\' in name || '\u0000' in name -> R.string.files_name_invalid
+    name.length > 255 -> R.string.files_name_invalid
+    else -> null
+}
+
+private fun createEntry(dir: File, name: String, folder: Boolean): File {
+    val target = File(dir, name.trim())
+    check(!target.exists()) { "\"${target.name}\" already exists" }
+    if (folder) check(target.mkdirs()) { "could not create the folder" }
+    else check(target.createNewFile()) { "could not create the file" }
+    return target
+}
+
+/** Renames (same folder) or moves [target] into [destDir], never replacing anything. */
+private fun moveEntry(target: File, destDir: File, name: String): File {
+    val dest = File(destDir, name.trim())
+    if (dest.path == target.path) return target
+    check(!dest.exists()) { "\"${dest.name}\" already exists there" }
+    check(!(target.isDirectory && (destDir.path + File.separator).startsWith(target.path + File.separator))) {
+        "a folder cannot be moved into itself"
+    }
+    java.nio.file.Files.move(target.toPath(), dest.toPath())
+    return dest
+}
+
+@Composable
+private fun NameDialog(naming: Naming, error: String?, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+    val initial = (naming as? Naming.Rename)?.target?.name.orEmpty()
+    val field = androidx.compose.foundation.text.input.rememberTextFieldState(initial)
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) {
+        runCatching { focus.requestFocus() }
+        // Select the name without its extension, as file managers do, so typing replaces it.
+        val dot = initial.lastIndexOf('.').takeIf { it > 0 } ?: initial.length
+        field.edit { selection = androidx.compose.ui.text.TextRange(0, dot) }
+    }
+    val typed = field.text.toString()
+    val problem = if (typed.isEmpty()) null else badName(typed)
+    val title = when (naming) {
+        is Naming.NewFile -> stringResource(R.string.files_new_file)
+        is Naming.NewFolder -> stringResource(R.string.files_new_folder)
+        is Naming.Rename -> stringResource(R.string.files_rename_title, naming.target.name)
+    }
+    val submit = { if (badName(typed) == null) onConfirm(typed.trim()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Card,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text(title, color = Palette.Text) },
+        text = {
+            Column {
+                androidx.compose.foundation.text.BasicTextField(
+                    state = field,
+                    lineLimits = androidx.compose.foundation.text.input.TextFieldLineLimits.SingleLine,
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = Mono, color = Palette.Text),
+                    cursorBrush = androidx.compose.ui.graphics.SolidColor(Palette.Accent),
+                    onKeyboardAction = { submit() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focus)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Palette.Bg)
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                )
+                val message = error ?: problem?.let { stringResource(it) }
+                if (message != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = Palette.Pink)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = submit, enabled = typed.isNotBlank() && problem == null) {
+                Text(
+                    stringResource(if (naming is Naming.Rename) R.string.files_rename else R.string.files_create),
+                    color = if (typed.isNotBlank() && problem == null) Palette.Accent else Palette.TextFaint,
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = Palette.TextDim) }
+        },
+    )
+}
+
+/** Picks the folder to move [target] into: every folder of the project, as an indented list. */
+@Composable
+private fun MoveDialog(root: File, target: File, error: String?, onPick: (File) -> Unit, onDismiss: () -> Unit) {
+    val folders by androidx.compose.runtime.produceState<List<Pair<File, Int>>?>(null, root, target) {
+        value = withContext(Dispatchers.IO) {
+            val out = mutableListOf(root to 0)
+            fun walk(dir: File, depth: Int) {
+                if (out.size > 1500 || depth > 12) return
+                (dir.listFiles() ?: emptyArray())
+                    .filter { it.isDirectory && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
+                    .sortedBy { it.name.lowercase() }
+                    .forEach { d ->
+                        // A folder cannot go inside itself, and heavy generated trees are left out.
+                        if (d.path == target.path || d.name in SKIP_IN_MOVE) return@forEach
+                        out += d to depth + 1
+                        walk(d, depth + 1)
+                    }
+            }
+            walk(root, 0)
+            out
+        }
+    }
+    val current = target.parentFile
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Card,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text(stringResource(R.string.files_move_title, target.name), color = Palette.Text) },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp)) {
+                if (error != null) {
+                    Text(error, style = MaterialTheme.typography.bodySmall, color = Palette.Pink, modifier = Modifier.padding(bottom = 8.dp))
+                }
+                val list = folders
+                if (list == null) {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Palette.Accent)
+                    }
+                } else {
+                    LazyColumn {
+                        items(list, key = { it.first.path }) { (dir, depth) ->
+                            val here = dir.path == current?.path
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable(enabled = !here) { onPick(dir) }
+                                    .padding(start = (8 + depth * 14).dp, end = 8.dp, top = 9.dp, bottom = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(TermFoldIcons.Folder, null, tint = if (here) Palette.TextFaint else Palette.Accent, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    if (depth == 0) stringResource(R.string.files_move_root, root.name) else dir.name,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.5.sp),
+                                    color = if (here) Palette.TextFaint else Palette.Text,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = Palette.TextDim) }
+        },
+    )
+}
+
+private val SKIP_IN_MOVE = setOf(".git", "node_modules", "build", ".gradle", "__pycache__", ".venv", "venv", "dist", "target")
 
 @Composable
 private fun DeleteDialog(file: File, error: String?, onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -503,6 +768,10 @@ private fun TreeRowView(
     onLongClick: () -> Unit,
     onDismissMenu: () -> Unit,
     onDelete: () -> Unit,
+    onNewFile: () -> Unit,
+    onNewFolder: () -> Unit,
+    onRename: () -> Unit,
+    onMove: () -> Unit,
     onClick: () -> Unit,
 ) {
   Box {
@@ -555,6 +824,10 @@ private fun TreeRowView(
         containerColor = Palette.Card,
         shape = RoundedCornerShape(12.dp),
     ) {
+        MenuEntry(TermFoldIcons.FilePlus, stringResource(R.string.files_new_file), onNewFile)
+        MenuEntry(TermFoldIcons.FolderPlus, stringResource(R.string.files_new_folder), onNewFolder)
+        MenuEntry(TermFoldIcons.Pencil, stringResource(R.string.files_rename), onRename)
+        MenuEntry(TermFoldIcons.MoveTo, stringResource(R.string.files_move), onMove)
         androidx.compose.material3.DropdownMenuItem(
             text = { Text(stringResource(R.string.files_delete), color = Palette.Pink) },
             leadingIcon = { Icon(TermFoldIcons.Trash, null, tint = Palette.Pink, modifier = Modifier.size(18.dp)) },
@@ -562,6 +835,15 @@ private fun TreeRowView(
         )
     }
   }
+}
+
+@Composable
+private fun MenuEntry(icon: ImageVector, label: String, onClick: () -> Unit) {
+    androidx.compose.material3.DropdownMenuItem(
+        text = { Text(label, color = Palette.Text) },
+        leadingIcon = { Icon(icon, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp)) },
+        onClick = onClick,
+    )
 }
 
 /**
@@ -1006,5 +1288,20 @@ fun FilesButton(open: Boolean, onClick: () -> Unit) {
             tint = if (open) Palette.Accent else Palette.TextDim,
             modifier = Modifier.size(21.dp),
         )
+    }
+}
+
+/** A header icon button that stays lit while its panel (search, files) is open. */
+@Composable
+fun HeaderToggle(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (active) Palette.AccentSoft else Color.Transparent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = label, tint = if (active) Palette.Accent else Palette.TextDim, modifier = Modifier.size(20.dp))
     }
 }
