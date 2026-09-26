@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.termfold.app.R
+import com.termfold.app.ui.components.LaunchedWhileVisible
 import com.termfold.app.files.FileActions
 import com.termfold.app.core.Folder
 import com.termfold.app.ui.components.BareIconButton
@@ -325,7 +326,7 @@ private fun FileTree(
         }
         fresh.forEach { (path, list) -> if (listings[path] != list) listings[path] = list }
     }
-    LaunchedEffect(root?.path) {
+    LaunchedWhileVisible(root?.path) {
         while (true) {
             delay(3_000)
             refreshTick++
@@ -1140,7 +1141,7 @@ private fun TextEditor(
 
     // Pick up edits made outside the editor (an agent or the shell) while there are no local
     // changes to lose.
-    LaunchedEffect(file, pageReady) {
+    LaunchedWhileVisible(file, pageReady) {
         while (true) {
             delay(1_500)
             if (loaded !is Loaded.Text || !pageReady || dirty || saving) continue

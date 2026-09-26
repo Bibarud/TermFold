@@ -55,6 +55,8 @@ class BrowserDriver(
 ) : BrowserBridge.Controller {
 
     override suspend fun run(action: String, args: JSONObject): JSONObject = withContext(Dispatchers.Main) {
+        // A minimized browser is paused to save power; the agent needs it running.
+        web.onResume()
         when (action) {
             "open" -> open(args)
             "back" -> history { if (web.canGoBack()) web.goBack() else return@history "There is no earlier page." ; null }

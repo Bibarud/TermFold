@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.termfold.app.R
+import com.termfold.app.ui.components.LaunchedWhileVisible
 import com.termfold.app.acp.AcpAgent
 import com.termfold.app.acp.AcpBlock
 import com.termfold.app.acp.AcpClient
@@ -1037,8 +1038,8 @@ private fun NoticeRow(text: String) {
 @Composable
 private fun WorkingRow() {
     var seconds by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) {
-        val start = System.currentTimeMillis()
+    val start = remember { System.currentTimeMillis() }
+    LaunchedWhileVisible(Unit) {
         while (true) {
             seconds = (System.currentTimeMillis() - start) / 1_000
             delay(1_000)

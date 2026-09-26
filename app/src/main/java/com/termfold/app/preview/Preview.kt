@@ -5,13 +5,11 @@ import android.webkit.MimeTypeMap
 import android.webkit.WebResourceResponse
 import com.termfold.app.shell.ShellPaths
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
@@ -142,12 +140,24 @@ object DevServers {
         8000, 8001, 8080, 8081, 8501, 8787, 8888, 9000, 1234, 1313,
     )
 
-    suspend fun scan(): List<Int> = withContext(Dispatchers.IO) {
-        coroutineScope {
-            PORTS.map { port -> async { port.takeIf { open("127.0.0.1", port) || open("::1", port) } } }
-                .awaitAll()
-                .filterNotNull()
+    private val lock = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var last: List<Int> = emptyList()
+    @Volatile private var lastAt = 0L
+
+    /**
+     * The ports with something listening. One pass tries them in turn on a single thread (a
+     * closed loopback port refuses at once, so this takes milliseconds), and the answer is
+     * shared for a few seconds by everyone who asks, so the pane and the header button do not
+     * each pay for it.
+     */
+    suspend fun scan(): List<Int> = lock.withLock {
+        if (System.currentTimeMillis() - lastAt < 5_000) return@withLock last
+        val found = withContext(Dispatchers.IO) {
+            PORTS.filter { port -> open("127.0.0.1", port) || open("::1", port) }
         }
+        last = found
+        lastAt = System.currentTimeMillis()
+        found
     }
 
     private fun open(host: String, port: Int): Boolean = runCatching {

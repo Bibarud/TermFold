@@ -97,6 +97,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.termfold.app.R
+import com.termfold.app.ui.components.LaunchedWhileVisible
 import com.termfold.app.files.FileActions
 import com.termfold.app.shell.Projects
 import com.termfold.app.shell.ShellPaths
@@ -172,7 +173,7 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
             iconsReady = true
         }
     }
-    LaunchedEffect(refresh) {
+    LaunchedWhileVisible(refresh) {
         while (true) {
             val names = withContext(Dispatchers.IO) {
                 Projects.dir(context).listFiles()
@@ -1092,7 +1093,7 @@ private fun FolderListing(
     var items by remember(dir) { mutableStateOf<List<Item>?>(null) }
     var readable by remember(dir) { mutableStateOf(true) }
     // The listing follows the disk: agents and shells change files while this is open.
-    LaunchedEffect(dir, showHidden, sort, refresh) {
+    LaunchedWhileVisible(dir, showHidden, sort, refresh) {
         while (true) {
             val (canRead, list) = withContext(Dispatchers.IO) { (dir.list() != null) to list(dir, showHidden, sort) }
             readable = canRead

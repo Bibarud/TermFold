@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.termfold.app.R
+import com.termfold.app.ui.components.LaunchedWhileVisible
 import com.termfold.app.core.Folder
 import com.termfold.app.ui.components.BareIconButton
 import com.termfold.app.ui.components.BottomNavSpacer
@@ -68,7 +69,7 @@ fun FolderDetailScreen(
     // Which sessions are working, refreshed twice a second: an ACP agent answering or setting
     // up, or a terminal whose program is producing output of its own.
     var working by remember { mutableStateOf(emptySet<String>()) }
-    LaunchedEffect(folder.id, folder.sessions) {
+    LaunchedWhileVisible(folder.id, folder.sessions) {
         while (true) {
             working = folder.sessions.mapNotNull { session ->
                 val key = com.termfold.app.shell.TerminalHost.sessionKey(folder.id, session.id)

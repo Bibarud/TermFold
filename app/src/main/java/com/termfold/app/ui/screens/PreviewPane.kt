@@ -103,6 +103,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.termfold.app.R
+import com.termfold.app.ui.components.LaunchedWhileVisible
 import com.termfold.app.files.FileActions
 import com.termfold.app.preview.BrowserBridge
 import com.termfold.app.preview.BrowserDriver
@@ -198,11 +199,12 @@ fun PreviewPane(
         fileCallback = null
     }
 
-    // Running dev servers, for the start page, the error page and the header dot.
-    LaunchedEffect(Unit) {
+    // Running dev servers, for the start page and the error page (the only places they show).
+    LaunchedWhileVisible(showStart, loadError != null, parked) {
+        if (parked || (!showStart && loadError == null)) return@LaunchedWhileVisible
         while (true) {
             servers = DevServers.scan()
-            delay(3000)
+            delay(4000)
         }
     }
 
@@ -224,12 +226,12 @@ fun PreviewPane(
 
     // A preview of the project's files reloads when anything in its folder changes. Dev servers
     // reload themselves.
-    LaunchedEffect(currentUrl, liveReload) {
-        val guest = currentUrl?.let(Preview::guestPathOf) ?: return@LaunchedEffect
-        if (!liveReload) return@LaunchedEffect
+    LaunchedWhileVisible(currentUrl, liveReload) {
+        val guest = currentUrl?.let(Preview::guestPathOf) ?: return@LaunchedWhileVisible
+        if (!liveReload) return@LaunchedWhileVisible
         val rootfs = ShellPaths.rootfsDir(context)
         val target = File(rootfs, guest.trimStart('/'))
-        val dir = if (target.isDirectory) target else target.parentFile ?: return@LaunchedEffect
+        val dir = if (target.isDirectory) target else target.parentFile ?: return@LaunchedWhileVisible
         var last = withContext(Dispatchers.IO) { PreviewFiles.newest(dir) }
         while (true) {
             delay(1000)
@@ -375,6 +377,15 @@ fun PreviewPane(
         )
         BrowserBridge.controller = driver
     }
+    // Minimized with no agent at work, or the app in the background: pause the page, so its
+    // animations and video stop drawing. An agent's next command wakes it (BrowserDriver).
+    val lifecycleState by androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
+    val visible = lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+    LaunchedEffect(webView, parked, agent.active, visible) {
+        val view = webView ?: return@LaunchedEffect
+        if (!agent.active && (parked || !visible)) view.onPause() else view.onResume()
+    }
+
     DisposableEffect(Unit) {
         onDispose { if (BrowserBridge.controller === driver) BrowserBridge.controller = null }
     }
@@ -1046,10 +1057,10 @@ private fun CountChip(count: Int, color: Color) {
 fun PreviewButton(projectDir: String?) {
     val state by Preview.state.collectAsState()
     var running by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
+    LaunchedWhileVisible(Unit) {
         while (true) {
             running = DevServers.scan().isNotEmpty()
-            delay(4000)
+            delay(6000)
         }
     }
     val open = state.open && !state.minimized
@@ -1140,14 +1151,11 @@ private fun AgentPointer(at: androidx.compose.ui.geometry.Offset, ripple: Float,
 /** While an agent drives: a glowing orange frame and a bar saying so, with Stop. */
 @Composable
 private fun AgentFrame(active: Boolean, paused: Boolean, label: String) {
-    val glow by androidx.compose.animation.core.rememberInfiniteTransition(label = "frame").animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100), androidx.compose.animation.core.RepeatMode.Reverse),
-        label = "glow",
-    )
     val shown by animateFloatAsState(if (active) 1f else 0f, androidx.compose.animation.core.tween(350), label = "frameShown")
     if (shown > 0f) {
+        // Created only while shown: an infinite animation ticks every frame (144 a second on some
+        // screens) for as long as it exists, even when nothing reads it.
+        val glow by rememberGlow()
         Box(
             Modifier
                 .fillMaxSize()
@@ -1179,6 +1187,7 @@ private fun AgentFrame(active: Boolean, paused: Boolean, label: String) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (!paused) {
+                val glow by rememberGlow()
                 Icon(
                     TermFoldIcons.Sparkle,
                     contentDescription = null,
@@ -1279,3 +1288,14 @@ private fun pillName(url: String): String {
     Preview.guestPathOf(url)?.let { return it.trimEnd('/').substringAfterLast('/').ifEmpty { "/" } }
     return url.substringAfter("://").substringBefore('/').removePrefix("www.")
 }
+
+
+/** The slow pulse of the agent frame and sparkle; exists only while they are on screen. */
+@Composable
+private fun rememberGlow(): androidx.compose.runtime.State<Float> =
+    androidx.compose.animation.core.rememberInfiniteTransition(label = "frame").animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1100), androidx.compose.animation.core.RepeatMode.Reverse),
+        label = "glow",
+    )
