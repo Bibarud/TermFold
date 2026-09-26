@@ -28,4 +28,8 @@
         <item quantity="one">%d sesión</item>
         <item quantity="other">%d sesiones</item>
     </plurals>
+    <plurals name="acp_attachments">
+        <item quantity="one">%d adjunto</item>
+        <item quantity="other">%d adjuntos</item>
+    </plurals>
 </resources>

@@ -37,6 +37,10 @@
     <string name="acp_setting_other">Lainnya</string>
     <string name="acp_setting_no_match">Tidak ada yang cocok</string>
     <string name="acp_stop">Hentikan</string>
+    <string name="acp_queue">Antrekan pesan</string>
+    <string name="acp_queued">Dalam antrean</string>
+    <string name="acp_steer">Kirim sekarang</string>
+    <string name="acp_jump_latest">Terbaru</string>
     <string name="acp_remove">Hapus</string>
     <string name="acp_message_hint">Kirim pesan ke %1$s</string>
     <string name="acp_pasted_file_meta">%1$d baris · %2$s karakter</string>

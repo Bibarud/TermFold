@@ -21,4 +21,7 @@
     <plurals name="project_sessions">
         <item quantity="other">%d sesi</item>
     </plurals>
+    <plurals name="acp_attachments">
+        <item quantity="other">%d lampiran</item>
+    </plurals>
 </resources>

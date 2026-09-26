@@ -155,6 +155,16 @@ data class AcpUiState(
     val canResumeSessions: Boolean = false,
     /** True while an earlier session is being reopened and its history replayed. */
     val restoring: Boolean = false,
+    /** Messages written while the agent was working, sent in order as each turn ends. */
+    val queued: List<AcpQueuedPrompt> = emptyList(),
+)
+
+/** A message waiting for the current turn to end (or to be sent now, stopping it). */
+data class AcpQueuedPrompt(
+    val id: Long,
+    val text: String,
+    val images: List<AcpBlock.Image>,
+    val files: List<AcpBlock.TextFile>,
 )
 
 /**
@@ -239,7 +249,7 @@ class AcpClient(
 
     /** Kills the agent and starts it again, keeping the visible conversation. */
     fun restart() {
-        _state.update { it.copy(phase = AcpPhase.CLOSED, agentBusy = false) }
+        _state.update { it.copy(phase = AcpPhase.CLOSED, agentBusy = false, queued = emptyList()) }
         start()
     }
 
@@ -406,7 +416,7 @@ class AcpClient(
     fun startNewSession() {
         scope.launch {
             agentSessionId = null
-            _state.update { it.copy(items = emptyList(), agentBusy = false, pendingPermission = null) }
+            _state.update { it.copy(items = emptyList(), agentBusy = false, pendingPermission = null, queued = emptyList()) }
             openSession()
         }
     }
@@ -514,6 +524,15 @@ class AcpClient(
         images: List<AcpBlock.Image>,
         files: List<AcpBlock.TextFile> = emptyList(),
     ) {
+        // A turn still ending (just stopped, say) must answer before the next prompt goes.
+        if (turnInFlight) enqueue(text, images, files) else sendNow(text, images, files)
+    }
+
+    private fun sendNow(
+        text: String,
+        images: List<AcpBlock.Image>,
+        files: List<AcpBlock.TextFile>,
+    ) {
         val sessionId = agentSessionId ?: return
         val caps = _state.value
         val content = JSONArray()
@@ -562,6 +581,8 @@ class AcpClient(
                 items = it.items + AcpItem.UserMessage(nextItemId(), text, images, files),
             )
         }
+        turnInFlight = true
+        stoppedByUser = false
         scope.launch {
             try {
                 // A coding turn routinely runs for many minutes; the reply to session/prompt
@@ -587,8 +608,67 @@ class AcpClient(
                 appendSystemError(failure.message ?: "prompt failed")
             } finally {
                 _state.update { it.copy(agentBusy = false) }
+                turnInFlight = false
+                sendNextQueued()
             }
         }
+    }
+
+    /** A prompt from session/prompt is still waiting for its answer (the turn has not ended). */
+    @Volatile private var turnInFlight = false
+
+    /** The user pressed Stop: what is queued waits instead of going out on its own. */
+    @Volatile private var stoppedByUser = false
+
+    /** A queued message the user chose to send now; it goes as soon as the stopped turn ends. */
+    @Volatile private var steerId: Long? = null
+
+    private var queueCounter = 0L
+
+    /** Keeps a message for when the current turn ends. */
+    fun enqueue(text: String, images: List<AcpBlock.Image>, files: List<AcpBlock.TextFile>) {
+        val item = AcpQueuedPrompt(++queueCounter, text, images, files)
+        _state.update { it.copy(queued = it.queued + item) }
+        // Writing a new message after Stop means carrying on: the queue runs again.
+        stoppedByUser = false
+        // The turn may have ended between the tap and now.
+        if (!turnInFlight) sendNextQueued()
+    }
+
+    fun removeQueued(id: Long) {
+        if (steerId == id) steerId = null
+        _state.update { state -> state.copy(queued = state.queued.filterNot { it.id == id }) }
+    }
+
+    /**
+     * Sends a queued message now: the agent's current turn is stopped and this message goes
+     * out as soon as the agent confirms, ahead of anything else in the queue.
+     */
+    fun steer(id: Long) {
+        if (_state.value.queued.none { it.id == id }) return
+        if (!turnInFlight) {
+            sendQueued(id)
+            return
+        }
+        steerId = id
+        val sessionId = agentSessionId ?: return
+        scope.launch { notify("session/cancel", JSONObject().put("sessionId", sessionId)) }
+    }
+
+    private fun sendNextQueued() {
+        val steer = steerId
+        steerId = null
+        when {
+            steer != null -> sendQueued(steer)
+            stoppedByUser -> Unit
+            else -> _state.value.queued.firstOrNull()?.let { sendQueued(it.id) }
+        }
+    }
+
+    private fun sendQueued(id: Long) {
+        val item = _state.value.queued.firstOrNull { it.id == id } ?: return
+        _state.update { state -> state.copy(queued = state.queued.filterNot { it.id == id }) }
+        sendNow(item.text, item.images, item.files)
     }
 
     private fun resourceLink(name: String, guestPath: String, mime: String, size: Long): JSONObject =
@@ -749,6 +829,8 @@ class AcpClient(
 
     fun cancel() {
         val sessionId = agentSessionId ?: return
+        stoppedByUser = true
+        steerId = null
         scope.launch { notify("session/cancel", JSONObject().put("sessionId", sessionId)) }
         _state.update { it.copy(agentBusy = false) }
     }

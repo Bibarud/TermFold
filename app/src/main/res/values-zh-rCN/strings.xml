@@ -37,6 +37,10 @@
     <string name="acp_setting_other">其他</string>
     <string name="acp_setting_no_match">无匹配项</string>
     <string name="acp_stop">停止</string>
+    <string name="acp_queue">加入队列</string>
+    <string name="acp_queued">已排队</string>
+    <string name="acp_steer">立即发送</string>
+    <string name="acp_jump_latest">最新</string>
     <string name="acp_remove">移除</string>
     <string name="acp_message_hint">给 %1$s 发消息</string>
     <string name="acp_pasted_file_meta">%1$d 行 · %2$s 个字符</string>

@@ -28,4 +28,8 @@
         <item quantity="one">%d सेशन</item>
         <item quantity="other">%d सेशन</item>
     </plurals>
+    <plurals name="acp_attachments">
+        <item quantity="one">%d अटैचमेंट</item>
+        <item quantity="other">%d अटैचमेंट</item>
+    </plurals>
 </resources>

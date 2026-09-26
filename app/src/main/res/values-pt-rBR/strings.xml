@@ -37,6 +37,10 @@
     <string name="acp_setting_other">Outros</string>
     <string name="acp_setting_no_match">Nenhum resultado</string>
     <string name="acp_stop">Parar</string>
+    <string name="acp_queue">Colocar na fila</string>
+    <string name="acp_queued">Na fila</string>
+    <string name="acp_steer">Enviar agora</string>
+    <string name="acp_jump_latest">Mais recente</string>
     <string name="acp_remove">Remover</string>
     <string name="acp_message_hint">Mensagem para %1$s</string>
     <string name="acp_pasted_file_meta">%1$d linhas · %2$s caracteres</string>

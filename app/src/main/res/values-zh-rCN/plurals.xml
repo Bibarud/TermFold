@@ -21,4 +21,7 @@
     <plurals name="project_sessions">
         <item quantity="other">%d 个会话</item>
     </plurals>
+    <plurals name="acp_attachments">
+        <item quantity="other">%d 个附件</item>
+    </plurals>
 </resources>

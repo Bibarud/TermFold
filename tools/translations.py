@@ -260,6 +260,10 @@ T = {
     "fm_unreadable": dict(hi="यह फ़ोल्डर खोला नहीं जा सकता।", es="No se puede abrir esta carpeta.", pt="Não é possível abrir esta pasta.", id="Folder ini tidak bisa dibuka.", zh="无法打开此文件夹。"),
     "fm_unreadable_hint": dict(hi="इसकी अनुमतियाँ इसे पढ़ने नहीं देतीं। शेल में chmod से इसे बदला जा सकता है।", es="Sus permisos no permiten leerla. Desde una shell, chmod puede cambiarlo.", pt="As permissões dela não permitem a leitura. Num shell, o chmod pode mudar isso.", id="Izinnya tidak mengizinkan untuk dibaca. Dari shell, chmod bisa mengubahnya.", zh="其权限不允许读取。可以在 shell 中用 chmod 修改。"),
     "fm_upload_title": dict(hi="अपलोड करें", es="Subir", pt="Enviar", id="Unggah", zh="上传"),
+    "acp_queue": dict(hi="संदेश कतार में रखें", es="Poner en cola", pt="Colocar na fila", id="Antrekan pesan", zh="加入队列"),
+    "acp_queued": dict(hi="कतार में", es="En cola", pt="Na fila", id="Dalam antrean", zh="已排队"),
+    "acp_steer": dict(hi="अभी भेजें", es="Enviar ahora", pt="Enviar agora", id="Kirim sekarang", zh="立即发送"),
+    "acp_jump_latest": dict(hi="नवीनतम", es="Lo último", pt="Mais recente", id="Terbaru", zh="最新"),
     "fm_read_only": dict(hi="केवल पढ़ने के लिए", es="Solo lectura", pt="Somente leitura", id="Hanya baca", zh="只读"),
     "fm_system_hint": dict(hi="सिस्टम फ़ोल्डर यहाँ सिर्फ़ देखे जा सकते हैं। जो चाहिए उसे Home में कॉपी करें।", es="Las carpetas del sistema aquí solo se pueden ver. Copia lo que necesites a Inicio.", pt="As pastas do sistema aqui são só para ver. Copie o que precisar para o Início.", id="Folder sistem di sini hanya bisa dilihat. Salin yang Anda perlukan ke Home.", zh="系统文件夹在这里只能查看。请把需要的内容复制到主目录。"),
     "fm_system_view_only": dict(hi="सिस्टम फ़ाइलें यहाँ सिर्फ़ टेक्स्ट या तस्वीर के रूप में खुलती हैं। और करने के लिए इसे Home में कॉपी करें।", es="Aquí los archivos del sistema solo se abren como texto o imagen. Cópialo a Inicio para hacer más.", pt="Aqui os arquivos do sistema só abrem como texto ou imagem. Copie para o Início para fazer mais.", id="File sistem di sini hanya dibuka sebagai teks atau gambar. Salin ke Home untuk melakukan lebih banyak.", zh="系统文件在这里只能以文本或图片方式打开。复制到主目录后可做更多操作。"),
@@ -329,6 +333,13 @@ PLURALS = {
         pt=dict(one="%d sessão", other="%d sessões"),
         id=dict(other="%d sesi"),
         zh=dict(other="%d 个会话"),
+    ),
+    "acp_attachments": dict(
+        hi=dict(one="%d अटैचमेंट", other="%d अटैचमेंट"),
+        es=dict(one="%d adjunto", other="%d adjuntos"),
+        pt=dict(one="%d anexo", other="%d anexos"),
+        id=dict(other="%d lampiran"),
+        zh=dict(other="%d 个附件"),
     ),
 }
 

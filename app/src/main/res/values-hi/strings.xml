@@ -37,6 +37,10 @@
     <string name="acp_setting_other">अन्य</string>
     <string name="acp_setting_no_match">कोई मेल नहीं</string>
     <string name="acp_stop">रोकें</string>
+    <string name="acp_queue">संदेश कतार में रखें</string>
+    <string name="acp_queued">कतार में</string>
+    <string name="acp_steer">अभी भेजें</string>
+    <string name="acp_jump_latest">नवीनतम</string>
     <string name="acp_remove">हटाएँ</string>
     <string name="acp_message_hint">%1$s को संदेश भेजें</string>
     <string name="acp_pasted_file_meta">%1$d पंक्तियाँ · %2$s अक्षर</string>

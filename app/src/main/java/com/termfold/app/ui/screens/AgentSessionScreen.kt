@@ -57,6 +57,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -114,7 +117,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private val ContentMaxWidth = 760.dp
+// A comfortable reading width: on a tablet the chat stays a column, not a banner.
+private val ContentMaxWidth = 680.dp
 
 /** A paste this long (or this many lines) becomes a text-file attachment instead of input. */
 private const val LongPasteChars = 1_200
@@ -218,7 +222,7 @@ fun AgentSessionScreen(
             when {
                 // Once there is a conversation it stays on screen; a restart or failure shows as a
                 // slim banner above it rather than replacing what the user was reading.
-                hasConversation -> Column(Modifier.fillMaxSize().widthIn(max = ContentMaxWidth)) {
+                hasConversation -> Column(Modifier.widthIn(max = ContentMaxWidth).fillMaxSize()) {
                     PhaseBanner(state, onRetry = { client.start() })
                     Timeline(state = state, workspaceDir = guestDir, modifier = Modifier.weight(1f))
                 }
@@ -303,6 +307,10 @@ fun AgentSessionScreen(
                 settings = state.settings,
                 onChangeSetting = { setting, value -> client.changeSetting(setting, value) },
                 onSend = { text, images, files -> client.send(text, images, files) },
+                onQueue = { text, images, files -> client.enqueue(text, images, files) },
+                queued = state.queued,
+                onSteer = { client.steer(it) },
+                onRemoveQueued = { client.removeQueued(it) },
                 onCancel = { client.cancel() },
             )
         }
@@ -529,39 +537,46 @@ private fun PillButton(label: String, icon: ImageVector, onClick: () -> Unit) {
 private fun Timeline(state: AcpUiState, workspaceDir: String, modifier: Modifier = Modifier) {
     val items = state.items
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
-    // Follow the conversation as it grows, including a streaming reply growing in place.
-    val lastLength = when (val last = items.lastOrNull()) {
-        is AcpItem.AgentText -> last.text.length
-        is AcpItem.Thought -> last.text.length
-        else -> 0
-    }
-    // Only while the user is at the bottom: someone who scrolled up to read is left alone.
-    // A new item glides into view; a reply growing in place is followed without an animation
-    // per chunk, which on a slow phone would queue up and stutter.
+    // Follow the conversation while the user is at the bottom; someone who scrolled up to read
+    // is left alone until they come back down (or tap the button). Following reacts to the
+    // laid-out list, not to the data, so it also keeps up with a reply or a tool's output
+    // growing in place, and with rows that only reach their full height after layout.
     var following by remember { mutableStateOf(true) }
+    var userDragging by remember { mutableStateOf(false) }
     LaunchedEffect(listState) {
-        androidx.compose.runtime.snapshotFlow { listState.isScrollInProgress to listState.canScrollForward }
-            .collect { (scrolling, canScrollForward) ->
-                if (scrolling) following = !canScrollForward
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is androidx.compose.foundation.interaction.DragInteraction.Start -> {
+                    userDragging = true
+                    following = false
+                }
+                is androidx.compose.foundation.interaction.DragInteraction.Stop,
+                is androidx.compose.foundation.interaction.DragInteraction.Cancel -> userDragging = false
             }
-    }
-    var lastCount by remember { mutableIntStateOf(0) }
-    LaunchedEffect(items.size, lastLength, state.agentBusy) {
-        val count = listState.layoutInfo.totalItemsCount
-        val grew = items.size != lastCount
-        lastCount = items.size
-        if (count == 0 || !following) return@LaunchedEffect
-        runCatching {
-            if (grew) listState.animateScrollToItem(count - 1) else listState.scrollToItem(count - 1)
-            // Show the end of a long reply, not its first line.
-            listState.scrollBy(100_000f)
         }
     }
+    LaunchedEffect(listState) {
+        androidx.compose.runtime.snapshotFlow { listState.canScrollForward to listState.isScrollInProgress }
+            .collect { (canScrollForward, scrolling) ->
+                // A fling that ends at the bottom picks following back up.
+                if (!canScrollForward && !userDragging) following = true
+                if (following && canScrollForward && !scrolling) {
+                    runCatching {
+                        val count = listState.layoutInfo.totalItemsCount
+                        if (count > 0) listState.scrollToItem(count - 1)
+                        // Show the end of a long reply, not its first line.
+                        listState.scrollBy(100_000f)
+                    }
+                }
+            }
+    }
 
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -578,7 +593,45 @@ private fun Timeline(state: AcpUiState, workspaceDir: String, modifier: Modifier
         }
 
         if (state.agentBusy) {
-            item(key = "working") { WorkingRow() }
+            // Keyed by the turn, so each message the agent takes on starts its own timer.
+            val turn = items.count { it is AcpItem.UserMessage }
+            item(key = "working-$turn") { WorkingRow() }
+        }
+    }
+
+        // Back to the newest message after scrolling up to read.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = !following && listState.canScrollForward,
+            enter = fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Palette.CardPressed)
+                    .border(1.dp, Palette.Border, RoundedCornerShape(50))
+                    .clickable {
+                        following = true
+                        scope.launch {
+                            runCatching {
+                                val count = listState.layoutInfo.totalItemsCount
+                                if (count > 0) listState.animateScrollToItem(count - 1)
+                                listState.scrollBy(100_000f)
+                            }
+                        }
+                    }
+                    .padding(start = 12.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(TermFoldIcons.ChevronDown, null, tint = Palette.Text, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(R.string.acp_jump_latest),
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                    color = Palette.Text,
+                )
+            }
         }
     }
 }
@@ -865,11 +918,10 @@ private fun ToolCallRow(item: AcpItem.ToolCall, workspaceDir: String) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(10.dp))
-            when (item.status) {
-                "completed" -> Icon(TermFoldIcons.Check, null, tint = Palette.Green, modifier = Modifier.size(14.dp))
-                "failed" -> Icon(TermFoldIcons.Close, null, tint = Palette.Pink, modifier = Modifier.size(14.dp))
-                else -> CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = Palette.Accent)
+            // A finished call needs no mark; a failed one is already red, a running one spins.
+            if (item.status != "completed" && item.status != "failed") {
+                Spacer(Modifier.width(10.dp))
+                CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 1.5.dp, color = Palette.Accent)
             }
             if (hasDetail) {
                 Spacer(Modifier.width(6.dp))
@@ -1125,6 +1177,10 @@ private fun Composer(
     settings: List<AcpSetting>,
     onChangeSetting: (AcpSetting, String) -> Unit,
     onSend: (String, List<AcpBlock.Image>, List<AcpBlock.TextFile>) -> Unit,
+    onQueue: (String, List<AcpBlock.Image>, List<AcpBlock.TextFile>) -> Unit,
+    queued: List<com.termfold.app.acp.AcpQueuedPrompt>,
+    onSteer: (Long) -> Unit,
+    onRemoveQueued: (Long) -> Unit,
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1182,9 +1238,11 @@ private fun Composer(
             else -> input.setTextAndPlaceCursorAtEnd("/${command.name} ")
         }
     }
+    // While the agent works, a message waits in the queue above the text area.
     fun send() {
-        if (!canSend || agentBusy) return
-        onSend(input.text.toString().trim(), images.toList(), files.toList())
+        if (!canSend) return
+        val text = input.text.toString().trim()
+        if (agentBusy || queued.isNotEmpty()) onQueue(text, images.toList(), files.toList()) else onSend(text, images.toList(), files.toList())
         input.clearText()
         images.clear()
         files.clear()
@@ -1207,6 +1265,8 @@ private fun Composer(
             if (slashMatches.isNotEmpty()) {
                 SlashMenu(slashMatches, highlighted = highlighted, onPick = ::pickCommand)
             }
+
+            QueuedList(queued, agentBusy = agentBusy, onSteer = onSteer, onRemove = onRemoveQueued)
 
             if (images.isNotEmpty() || files.isNotEmpty()) {
                 Row(
@@ -1321,22 +1381,37 @@ private fun Composer(
                     SettingsButton(agentId, settings, onChangeSetting)
                     Spacer(Modifier.width(4.dp))
                 }
-                val active = agentBusy || canSend
-                Box(
-                    modifier = Modifier
-                        .padding(start = 4.dp)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(if (active) Palette.Accent else Palette.CardPressed)
-                        .clickable(enabled = active) { if (agentBusy) onCancel() else send() },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = if (agentBusy) TermFoldIcons.Stop else TermFoldIcons.Send,
-                        contentDescription = stringResource(if (agentBusy) R.string.acp_stop else R.string.cd_send),
-                        tint = if (active) Palette.OnAccent else Palette.TextFaint,
-                        modifier = Modifier.size(18.dp),
-                    )
+                // While the agent works: Stop, and beside it Send, which queues the message.
+                if (agentBusy) {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Palette.CardPressed)
+                            .clickable(onClick = onCancel),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(TermFoldIcons.Stop, stringResource(R.string.acp_stop), tint = Palette.Text, modifier = Modifier.size(16.dp))
+                    }
+                }
+                if (!agentBusy || canSend) {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(if (canSend) Palette.Accent else Palette.CardPressed)
+                            .clickable(enabled = canSend) { send() },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = TermFoldIcons.Send,
+                            contentDescription = stringResource(if (agentBusy) R.string.acp_queue else R.string.cd_send),
+                            tint = if (canSend) Palette.OnAccent else Palette.TextFaint,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
                 }
             }
         }
@@ -1372,6 +1447,78 @@ private fun Composer(
                 )
             },
         )
+    }
+}
+
+/**
+ * Messages waiting for the agent, above the text area: each can be sent now (stopping the
+ * current turn so the agent takes it straight away) or removed.
+ */
+@Composable
+private fun QueuedList(
+    queued: List<com.termfold.app.acp.AcpQueuedPrompt>,
+    agentBusy: Boolean,
+    onSteer: (Long) -> Unit,
+    onRemove: (Long) -> Unit,
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = queued.isNotEmpty(),
+        enter = fadeIn() + androidx.compose.animation.expandVertically(),
+        exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 10.dp)) {
+            queued.forEach { item ->
+                key(item.id) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Palette.Bg)
+                            .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.acp_queued),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Palette.TextFaint,
+                            )
+                            val attachments = item.images.size + item.files.size
+                            Text(
+                                text = item.text.ifBlank { "" } +
+                                    if (attachments > 0) {
+                                        (if (item.text.isBlank()) "" else "  ·  ") +
+                                            androidx.compose.ui.res.pluralStringResource(R.plurals.acp_attachments, attachments, attachments)
+                                    } else {
+                                        ""
+                                    },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Palette.Text,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Text(
+                            stringResource(if (agentBusy) R.string.acp_steer else R.string.cd_send),
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                            color = Palette.Accent,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onSteer(item.id) }
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                        )
+                        BareIconButton(
+                            icon = TermFoldIcons.Close,
+                            contentDescription = stringResource(R.string.acp_remove),
+                            onClick = { onRemove(item.id) },
+                            tint = Palette.TextFaint,
+                            size = 32,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 

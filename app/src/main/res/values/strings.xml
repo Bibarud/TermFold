@@ -40,6 +40,10 @@
     <string name="acp_setting_other">Other</string>
     <string name="acp_setting_no_match">No matches</string>
     <string name="acp_stop">Stop</string>
+    <string name="acp_queue">Queue message</string>
+    <string name="acp_queued">Queued</string>
+    <string name="acp_steer">Send now</string>
+    <string name="acp_jump_latest">Latest</string>
     <string name="acp_remove">Remove</string>
     <string name="acp_message_hint">Message %1$s</string>
     <string name="acp_pasted_file_meta">%1$d lines · %2$s chars</string>
