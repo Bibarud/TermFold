@@ -193,6 +193,10 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
     }
 
     fun reload() { refresh++ }
+    // Only Home (your projects included) is changed from here; the rest of the system is view-only.
+    val home = remember { File(rootfs, HOME.trimStart('/')) }
+    fun isUser(file: File) = file.path == home.path || file.path.startsWith(home.path + File.separator)
+    val readOnly = !isGuestHome(cwd)
     fun guestOf(file: File): String = "/" + file.relativeTo(rootfs).path.replace('\\', '/').trim('/')
     fun go(guest: String) {
         cwd = guest.ifEmpty { "/" }
@@ -204,6 +208,7 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
         when {
             item.isDir -> go(guestOf(item.file))
             FileActions.opensInEditor(item.file) -> editing = item.file
+            !isUser(item.file) -> message = context.getString(R.string.fm_system_view_only)
             else -> runCatching { FileActions.openWith(context, item.file) }.onFailure { message = it.message }
         }
     }
@@ -301,6 +306,13 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
         ) {
             val f = item.file
             fun act(block: () -> Unit) { menuFor = null; block() }
+            if (!isUser(f)) {
+                // A system file: look, take its path, or copy it into Home to work on.
+                if (!item.isDir && FileActions.isImage(f)) MenuEntry(TermFoldIcons.ImageCopy, stringResource(R.string.img_copy)) { act { copyImage(f) } }
+                MenuEntry(TermFoldIcons.Terminal, stringResource(R.string.fm_copy_path)) { act { copyPath(f) } }
+                MenuEntry(TermFoldIcons.Copy, stringResource(R.string.action_copy)) { act { clip = Clip(listOf(f), cut = false) } }
+                return@DropdownMenu
+            }
             if (!item.isDir) {
                 if (FileActions.isImage(f)) MenuEntry(TermFoldIcons.ImageCopy, stringResource(R.string.img_copy)) { act { copyImage(f) } }
                 MenuEntry(TermFoldIcons.OpenExternal, stringResource(R.string.fm_open_with)) {
@@ -353,6 +365,7 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
                         edge = edge,
                         projects = projects,
                         canGoUp = cwd != "/",
+                        readOnly = readOnly,
                         onUp = { go(cwd.substringBeforeLast('/')) },
                         onGo = ::go,
                         query = query,
@@ -392,6 +405,7 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
                         SelectionBar(
                             count = count,
                             wide = wide,
+                            readOnly = selectedFiles.any { !isUser(it) },
                             edge = edge,
                             onClose = { selected = emptySet() },
                             onSelectAll = {
@@ -438,6 +452,7 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
                                 sort = sort,
                                 grid = grid,
                                 wide = wide,
+                                readOnly = !isGuestHome(path),
                                 refresh = refresh,
                                 edge = edge,
                                 actions = itemActions,
@@ -484,6 +499,7 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
                     CodeEditor(
                         file = file,
                         root = rootfs,
+                        readOnly = !isUser(file),
                         onDirtyChange = {},
                         onClose = { editing = null },
                         modifier = Modifier
@@ -567,6 +583,9 @@ private class ItemActions(
     val menu: @Composable (Item) -> Unit,
 )
 
+/** Home and everything in it (projects included): the part of the system that is yours. */
+private fun isGuestHome(path: String) = path == HOME || path.startsWith("$HOME/")
+
 private fun depth(path: String) = path.trim('/').split('/').count { it.isNotEmpty() }
 
 @Composable
@@ -587,6 +606,7 @@ private fun Header(
     edge: androidx.compose.ui.unit.Dp,
     projects: List<String>,
     canGoUp: Boolean,
+    readOnly: Boolean,
     onUp: () -> Unit,
     onGo: (String) -> Unit,
     query: String,
@@ -650,6 +670,23 @@ private fun Header(
                         Spacer(Modifier.width(4.dp))
                         Icon(TermFoldIcons.ChevronDown, null, tint = Palette.TextFaint, modifier = Modifier.size(16.dp))
                     }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = readOnly,
+                        enter = fadeIn() + expandHorizontally(),
+                        exit = fadeOut() + shrinkHorizontally(),
+                    ) {
+                        Text(
+                            stringResource(R.string.fm_read_only),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Palette.TextDim,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .padding(start = 10.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Palette.Card)
+                                .padding(horizontal = 7.dp, vertical = 3.dp),
+                        )
+                    }
                 }
                 DropdownMenu(
                     expanded = placesMenu,
@@ -671,7 +708,7 @@ private fun Header(
             } else {
                 HeaderIcon(if (searchOpen) TermFoldIcons.Close else TermFoldIcons.Search, stringResource(R.string.cd_search), active = searchOpen, onClick = onSearchToggle)
             }
-            Box {
+            if (!readOnly) Box {
                 HeaderIcon(TermFoldIcons.Upload, stringResource(R.string.fm_upload)) { uploadMenu = true }
                 DropdownMenu(
                     expanded = uploadMenu,
@@ -683,7 +720,7 @@ private fun Header(
                     MenuEntry(TermFoldIcons.FolderImport, stringResource(R.string.fm_upload_folder)) { uploadMenu = false; onUploadFolder() }
                 }
             }
-            Box {
+            if (!readOnly) Box {
                 HeaderIcon(TermFoldIcons.Plus, stringResource(R.string.fm_new)) { newMenu = true }
                 DropdownMenu(
                     expanded = newMenu,
@@ -763,12 +800,12 @@ private fun Header(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    stringResource(R.string.fm_paste_here),
+                    stringResource(if (readOnly) R.string.fm_paste_in_home else R.string.fm_paste_here),
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
-                    color = Palette.Accent,
+                    color = if (readOnly) Palette.TextFaint else Palette.Accent,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onPaste)
+                        .clickable(enabled = !readOnly, onClick = onPaste)
                         .padding(horizontal = 10.dp, vertical = 7.dp),
                 )
                 BareIconButton(icon = TermFoldIcons.Close, contentDescription = stringResource(R.string.action_cancel), onClick = onClearClip, tint = Palette.TextFaint, size = 34)
@@ -786,6 +823,7 @@ private fun pluralStringResource(id: Int, count: Int): String =
 private fun SelectionBar(
     count: Int,
     wide: Boolean,
+    readOnly: Boolean,
     edge: androidx.compose.ui.unit.Dp,
     onClose: () -> Unit,
     onSelectAll: () -> Unit,
@@ -820,13 +858,16 @@ private fun SelectionBar(
             )
         }
         Spacer(Modifier.weight(1f))
-        if (wide) HeaderIcon(TermFoldIcons.Check, stringResource(R.string.fm_select_all), onClick = onSelectAll)
+        // System files can only be copied (into Home) from here.
+        if (wide || readOnly) HeaderIcon(TermFoldIcons.Check, stringResource(R.string.fm_select_all), onClick = onSelectAll)
         HeaderIcon(TermFoldIcons.Copy, stringResource(R.string.action_copy), onClick = onCopy)
-        HeaderIcon(TermFoldIcons.MoveTo, stringResource(R.string.fm_cut), onClick = onCut)
-        HeaderIcon(TermFoldIcons.Share, stringResource(R.string.fm_share), onClick = onShare)
-        if (wide) HeaderIcon(TermFoldIcons.FolderExport, stringResource(R.string.fm_export), onClick = onExport)
-        HeaderIcon(TermFoldIcons.Trash, stringResource(R.string.files_delete), danger = true, onClick = onDelete)
-        if (!wide) {
+        if (!readOnly) {
+            HeaderIcon(TermFoldIcons.MoveTo, stringResource(R.string.fm_cut), onClick = onCut)
+            HeaderIcon(TermFoldIcons.Share, stringResource(R.string.fm_share), onClick = onShare)
+            if (wide) HeaderIcon(TermFoldIcons.FolderExport, stringResource(R.string.fm_export), onClick = onExport)
+            HeaderIcon(TermFoldIcons.Trash, stringResource(R.string.files_delete), danger = true, onClick = onDelete)
+        }
+        if (!wide && !readOnly) {
             Box {
                 HeaderIcon(TermFoldIcons.More, stringResource(R.string.cd_more)) { more = true }
                 DropdownMenu(
@@ -1038,6 +1079,7 @@ private fun FolderListing(
     sort: SortBy,
     grid: Boolean,
     wide: Boolean,
+    readOnly: Boolean,
     refresh: Int,
     edge: androidx.compose.ui.unit.Dp,
     actions: ItemActions,
@@ -1066,7 +1108,7 @@ private fun FolderListing(
         list.isEmpty() -> Empty(
             icon = TermFoldIcons.Folder,
             title = stringResource(R.string.files_empty),
-            hint = stringResource(R.string.fm_empty_hint),
+            hint = stringResource(if (readOnly) R.string.fm_system_hint else R.string.fm_empty_hint),
         )
         grid -> LazyVerticalGrid(
             columns = GridCells.Adaptive(if (wide) 132.dp else 104.dp),

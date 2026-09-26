@@ -86,7 +86,7 @@ private sealed interface Picture {
  * it to the device.
  */
 @Composable
-internal fun ImageViewer(file: File, onClose: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ImageViewer(file: File, onClose: () -> Unit, modifier: Modifier = Modifier, readOnly: Boolean = false) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var picture by remember(file) { mutableStateOf<Picture>(Picture.Loading) }
@@ -241,13 +241,16 @@ internal fun ImageViewer(file: File, onClose: () -> Unit, modifier: Modifier = M
                             }
                         }
                     }
-                    ViewerAction(TermFoldIcons.Share, stringResource(R.string.fm_share)) {
-                        runCatching { FileActions.share(context, listOf(file)) }.onFailure { message = it.message }
+                    // A system picture is only looked at (and copied); sharing is for your own files.
+                    if (!readOnly) {
+                        ViewerAction(TermFoldIcons.Share, stringResource(R.string.fm_share)) {
+                            runCatching { FileActions.share(context, listOf(file)) }.onFailure { message = it.message }
+                        }
+                        ViewerAction(TermFoldIcons.OpenExternal, stringResource(R.string.img_open_with)) {
+                            runCatching { FileActions.openWith(context, file) }.onFailure { message = it.message }
+                        }
+                        ViewerAction(TermFoldIcons.SaveToDevice, stringResource(R.string.img_save)) { saveAs.launch(file.name) }
                     }
-                    ViewerAction(TermFoldIcons.OpenExternal, stringResource(R.string.img_open_with)) {
-                        runCatching { FileActions.openWith(context, file) }.onFailure { message = it.message }
-                    }
-                    ViewerAction(TermFoldIcons.SaveToDevice, stringResource(R.string.img_save)) { saveAs.launch(file.name) }
                 }
             }
         }

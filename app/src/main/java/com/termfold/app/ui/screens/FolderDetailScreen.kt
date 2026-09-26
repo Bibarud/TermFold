@@ -145,6 +145,7 @@ fun FolderDetailScreen(
                 icon = TermFoldIcons.Plus,
                 label = stringResource(R.string.new_session_title),
                 onClick = onAddSession,
+                compact = !wide,
             )
         }
 

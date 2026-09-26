@@ -184,7 +184,22 @@ fun PrimaryButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
+    // On a phone the label would crowd the title: just the icon, named for accessibility.
+    if (compact) {
+        Box(
+            modifier = modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Palette.Accent)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(imageVector = icon, contentDescription = label, tint = Palette.OnAccent, modifier = Modifier.size(20.dp))
+        }
+        return
+    }
     Row(
         modifier = modifier
             .height(40.dp)

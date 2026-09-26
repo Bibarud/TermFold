@@ -130,6 +130,11 @@
     <string name="fm_search_scope">Search looks in this folder and every folder inside it.</string>
     <string name="fm_search_more">Showing the first %1$d matches. Type more to narrow it down.</string>
     <string name="fm_select_all">Select all</string>
+    <string name="fm_read_only">Read-only</string>
+    <string name="fm_upload_title">Upload</string>
+    <string name="fm_system_hint">System folders are view-only here. Copy what you need into Home.</string>
+    <string name="fm_system_view_only">System files open here only as text or pictures. Copy it into Home to do more.</string>
+    <string name="fm_paste_in_home">Paste in Home</string>
     <string name="fm_unreadable">This folder can\'t be opened.</string>
     <string name="fm_unreadable_hint">Its permissions don\'t allow reading it. From a shell, chmod can change that.</string>
     <string name="fm_paste_here">Paste here</string>

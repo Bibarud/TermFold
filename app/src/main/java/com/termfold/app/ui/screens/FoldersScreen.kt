@@ -137,6 +137,7 @@ fun FoldersScreen(
                 icon = TermFoldIcons.Plus,
                 label = androidx.compose.ui.res.stringResource(R.string.project_new),
                 onClick = onAddFolder,
+                compact = !useGrid,
             )
         }
 

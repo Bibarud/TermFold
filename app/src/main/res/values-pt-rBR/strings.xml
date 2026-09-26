@@ -127,6 +127,11 @@
     <string name="fm_search_scope">A pesquisa olha nesta pasta e em todas as pastas dentro dela.</string>
     <string name="fm_search_more">Mostrando as primeiras %1$d correspondências. Digite mais para refinar.</string>
     <string name="fm_select_all">Selecionar tudo</string>
+    <string name="fm_read_only">Somente leitura</string>
+    <string name="fm_upload_title">Enviar</string>
+    <string name="fm_system_hint">As pastas do sistema aqui são só para ver. Copie o que precisar para o Início.</string>
+    <string name="fm_system_view_only">Aqui os arquivos do sistema só abrem como texto ou imagem. Copie para o Início para fazer mais.</string>
+    <string name="fm_paste_in_home">Colar no Início</string>
     <string name="fm_unreadable">Não é possível abrir esta pasta.</string>
     <string name="fm_unreadable_hint">As permissões dela não permitem a leitura. Num shell, o chmod pode mudar isso.</string>
     <string name="fm_paste_here">Colar aqui</string>

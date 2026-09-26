@@ -127,6 +127,11 @@
     <string name="fm_search_scope">搜索范围包括此文件夹及其中的所有文件夹。</string>
     <string name="fm_search_more">仅显示前 %1$d 个结果。输入更多内容以缩小范围。</string>
     <string name="fm_select_all">全选</string>
+    <string name="fm_read_only">只读</string>
+    <string name="fm_upload_title">上传</string>
+    <string name="fm_system_hint">系统文件夹在这里只能查看。请把需要的内容复制到主目录。</string>
+    <string name="fm_system_view_only">系统文件在这里只能以文本或图片方式打开。复制到主目录后可做更多操作。</string>
+    <string name="fm_paste_in_home">粘贴到主目录</string>
     <string name="fm_unreadable">无法打开此文件夹。</string>
     <string name="fm_unreadable_hint">其权限不允许读取。可以在 shell 中用 chmod 修改。</string>
     <string name="fm_paste_here">粘贴到此处</string>

@@ -127,6 +127,11 @@
     <string name="fm_search_scope">La búsqueda mira en esta carpeta y en todas las que contiene.</string>
     <string name="fm_search_more">Se muestran las primeras %1$d coincidencias. Escribe más para acotar.</string>
     <string name="fm_select_all">Seleccionar todo</string>
+    <string name="fm_read_only">Solo lectura</string>
+    <string name="fm_upload_title">Subir</string>
+    <string name="fm_system_hint">Las carpetas del sistema aquí solo se pueden ver. Copia lo que necesites a Inicio.</string>
+    <string name="fm_system_view_only">Aquí los archivos del sistema solo se abren como texto o imagen. Cópialo a Inicio para hacer más.</string>
+    <string name="fm_paste_in_home">Pegar en Inicio</string>
     <string name="fm_unreadable">No se puede abrir esta carpeta.</string>
     <string name="fm_unreadable_hint">Sus permisos no permiten leerla. Desde una shell, chmod puede cambiarlo.</string>
     <string name="fm_paste_here">Pegar aquí</string>

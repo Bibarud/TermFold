@@ -401,9 +401,48 @@ private fun FileTree(
             ).show()
         }
     }
+    // A whole folder from the device, copied in with everything inside it.
+    val folderUploader = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+    ) { tree: android.net.Uri? ->
+        val into = uploadInto ?: return@rememberLauncherForActivityResult
+        uploadInto = null
+        if (tree == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val count = withContext(Dispatchers.IO) {
+                runCatching {
+                    val name = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, tree)?.name ?: "folder"
+                    val target = FileActions.unique(into, com.termfold.app.shell.Projects.safeName(name) ?: "folder")
+                    com.termfold.app.shell.Projects.importTree(context, tree, target)
+                }
+            }
+            afterChange(into)
+            android.widget.Toast.makeText(
+                context,
+                count.fold({ context.resources.getQuantityString(R.plurals.fm_uploaded, it, it) }, { it.message ?: "Upload failed" }),
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+    // Where the next upload goes, while the user picks files or a folder.
+    var uploadChoice by remember { mutableStateOf<File?>(null) }
     fun uploadTo(dir: File) {
-        uploadInto = dir
-        uploader.launch(arrayOf("*/*"))
+        uploadChoice = dir
+    }
+    uploadChoice?.let { dir ->
+        UploadChoiceDialog(
+            onFiles = {
+                uploadChoice = null
+                uploadInto = dir
+                uploader.launch(arrayOf("*/*"))
+            },
+            onFolder = {
+                uploadChoice = null
+                uploadInto = dir
+                folderUploader.launch(null)
+            },
+            onDismiss = { uploadChoice = null },
+        )
     }
 
     fun runOp(op: () -> File, done: (File) -> Unit) {
@@ -897,6 +936,27 @@ private fun TreeRowView(
   }
 }
 
+/** Upload into a folder: files of any type, or a whole folder with everything in it. */
+@Composable
+private fun UploadChoiceDialog(onFiles: () -> Unit, onFolder: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Card,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text(stringResource(R.string.fm_upload_title), color = Palette.Text) },
+        text = {
+            Column {
+                MenuEntry(TermFoldIcons.FileText, stringResource(R.string.fm_upload_files), onFiles)
+                MenuEntry(TermFoldIcons.FolderImport, stringResource(R.string.fm_upload_folder), onFolder)
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), color = Palette.TextDim) }
+        },
+    )
+}
+
 @Composable
 internal fun MenuEntry(icon: ImageVector, label: String, onClick: () -> Unit) {
     androidx.compose.material3.DropdownMenuItem(
@@ -1017,12 +1077,13 @@ internal fun CodeEditor(
     onDirtyChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
 ) {
     if (FileActions.isImage(file)) {
         LaunchedEffect(file) { onDirtyChange(false) }
-        ImageViewer(file = file, onClose = onClose, modifier = modifier)
+        ImageViewer(file = file, onClose = onClose, modifier = modifier, readOnly = readOnly)
     } else {
-        TextEditor(file, root, onDirtyChange, onClose, modifier)
+        TextEditor(file, root, onDirtyChange, onClose, modifier, readOnly)
     }
 }
 
@@ -1034,6 +1095,7 @@ private fun TextEditor(
     onDirtyChange: (Boolean) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    readOnly: Boolean = false,
 ) {
     val scope = rememberCoroutineScope()
     var loaded by remember(file) { mutableStateOf<Loaded>(Loaded.Loading) }
@@ -1054,6 +1116,7 @@ private fun TextEditor(
     LaunchedEffect(file) {
         onDirtyChange(false)
         loaded = withContext(Dispatchers.IO) { load(file, unableToRead, tooLarge, binary) }
+            .let { if (readOnly && it is Loaded.Text) it.copy(writable = false) else it }
         (loaded as? Loaded.Text)?.let { knownModified = it.modified }
     }
 

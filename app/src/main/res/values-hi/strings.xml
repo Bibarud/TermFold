@@ -127,6 +127,11 @@
     <string name="fm_search_scope">खोज इस फ़ोल्डर और इसके अंदर के हर फ़ोल्डर में होती है।</string>
     <string name="fm_search_more">पहले %1$d नतीजे दिख रहे हैं। कम करने के लिए और लिखें।</string>
     <string name="fm_select_all">सभी चुनें</string>
+    <string name="fm_read_only">केवल पढ़ने के लिए</string>
+    <string name="fm_upload_title">अपलोड करें</string>
+    <string name="fm_system_hint">सिस्टम फ़ोल्डर यहाँ सिर्फ़ देखे जा सकते हैं। जो चाहिए उसे Home में कॉपी करें।</string>
+    <string name="fm_system_view_only">सिस्टम फ़ाइलें यहाँ सिर्फ़ टेक्स्ट या तस्वीर के रूप में खुलती हैं। और करने के लिए इसे Home में कॉपी करें।</string>
+    <string name="fm_paste_in_home">Home में पेस्ट करें</string>
     <string name="fm_unreadable">यह फ़ोल्डर खोला नहीं जा सकता।</string>
     <string name="fm_unreadable_hint">इसकी अनुमतियाँ इसे पढ़ने नहीं देतीं। शेल में chmod से इसे बदला जा सकता है।</string>
     <string name="fm_paste_here">यहाँ पेस्ट करें</string>

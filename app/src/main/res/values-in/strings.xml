@@ -127,6 +127,11 @@
     <string name="fm_search_scope">Pencarian melihat folder ini dan setiap folder di dalamnya.</string>
     <string name="fm_search_more">Menampilkan %1$d hasil pertama. Ketik lebih banyak untuk mempersempit.</string>
     <string name="fm_select_all">Pilih semua</string>
+    <string name="fm_read_only">Hanya baca</string>
+    <string name="fm_upload_title">Unggah</string>
+    <string name="fm_system_hint">Folder sistem di sini hanya bisa dilihat. Salin yang Anda perlukan ke Home.</string>
+    <string name="fm_system_view_only">File sistem di sini hanya dibuka sebagai teks atau gambar. Salin ke Home untuk melakukan lebih banyak.</string>
+    <string name="fm_paste_in_home">Tempel di Home</string>
     <string name="fm_unreadable">Folder ini tidak bisa dibuka.</string>
     <string name="fm_unreadable_hint">Izinnya tidak mengizinkan untuk dibaca. Dari shell, chmod bisa mengubahnya.</string>
     <string name="fm_paste_here">Tempel di sini</string>
