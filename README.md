@@ -49,7 +49,8 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 - **Or talk to them natively.** Agents that speak the [Agent Client Protocol](https://agentclientprotocol.com)
   get a real chat UI: Markdown with code blocks and tables, a live thinking ticker, tool calls with file
   names, plans, permission prompts, slash commands, and a model / reasoning / mode picker.
-  Supported out of the box: Claude, Codex, OpenCode, Cursor, Devin, Pi, omp and Google Antigravity.
+  Supported out of the box: Claude, Codex, OpenCode, Cursor, Devin, Pi and omp. Google Antigravity's
+  chat server cannot run on Android; its `agy` CLI works in a Shell session.
 - **A file manager built in.** Browse your Linux home, your projects or the whole system;
   search, sort, list or grid; create, rename, copy, move and delete. Code opens in a real editor
   (CodeMirror: 40+ languages, search, undo, Ctrl+S) that reloads files an agent changes. Pictures

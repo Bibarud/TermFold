@@ -59,6 +59,12 @@ object ShellSetup {
             CLIS.forEach { (bin, pkg) ->
                 writeExecutable(File(rootfs, "usr/local/bin/$bin"), standIn(bin, pkg))
             }
+            // Google Antigravity's ACP server cannot run here (see AcpRegistry); drop its
+            // download (about 1 GB) and TermFold's experimental adapter if an earlier build left them.
+            listOf("opt/acp/antigravity-acp", "usr/local/lib/termfold/agy-acp.js", "root/.termfold/agy-sessions.json")
+                .map { File(rootfs, it) }
+                .filter { it.exists() }
+                .forEach { it.deleteRecursively() }
             installBrowserTools(context, rootfs)
         }.onFailure { Log.w(TAG, "Could not install the setup files", it) }
     }

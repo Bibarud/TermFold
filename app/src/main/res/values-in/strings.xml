@@ -281,4 +281,6 @@
     <string name="acp_history_search">Cari sesi</string>
     <string name="acp_history_no_match">Tidak ada sesi yang cocok dengan “%1$s”</string>
     <string name="acp_history_delete_confirm">Hapus sesi ini?</string>
+    <string name="acp_agent_unsupported_title">Tidak tersedia sebagai chat di Android</string>
+    <string name="acp_antigravity_unsupported">Server chat Google Antigravity tidak dapat berjalan di Android. Gunakan perintah agy di sesi Shell. Anda bisa menghapus sesi chat ini.</string>
 </resources>

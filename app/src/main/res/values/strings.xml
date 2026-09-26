@@ -312,4 +312,6 @@
     <string name="acp_history_search">Search sessions</string>
     <string name="acp_history_no_match">No session matches “%1$s”</string>
     <string name="acp_history_delete_confirm">Delete this session?</string>
+    <string name="acp_agent_unsupported_title">Not available as a chat on Android</string>
+    <string name="acp_antigravity_unsupported">Google Antigravity\'s chat server cannot run on Android. Use the agy command in a Shell session instead. You can delete this chat session.</string>
 </resources>

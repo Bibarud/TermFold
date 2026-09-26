@@ -86,9 +86,18 @@ object AcpRegistry {
      * The agents offered, in display order. The registry lists dozens; only these are shown.
      * Ids not in the registry (omp) are supplied by [extraAgents].
      */
+    /**
+     * Registry agents that cannot run on Android at all, so they are neither offered nor used
+     * for existing sessions (which say why instead of downloading them again).
+     */
+    val UNSUPPORTED = setOf("antigravity-acp")
+
     private val OFFERED = listOf(
-        "claude-acp", "codex-acp", "opencode", "cursor", "devin", "pi-acp", "omp", "antigravity-acp",
+        "claude-acp", "codex-acp", "opencode", "cursor", "devin", "pi-acp", "omp",
     )
+    // Not offered: Google Antigravity (antigravity-acp). Its ACP server is built with TCMalloc,
+    // which assumes a 48-bit address space and aborts on Android kernels (39-bit). Its agy CLI
+    // works in a Shell session.
 
     private fun parse(body: String): List<AcpAgent>? = runCatching {
         val root = JSONObject(body)
@@ -97,6 +106,7 @@ object AcpRegistry {
             runCatching { fromJson(agents.getJSONObject(index)) }.getOrNull()
         }.filterNotNull()
         (fromRegistry + extraAgents())
+            .filter { it.id !in UNSUPPORTED }
             .distinctBy { it.id }
             .sortedBy { it.name.lowercase() }
     }.onFailure { Log.w(TAG, "Could not parse the registry", it) }.getOrNull()

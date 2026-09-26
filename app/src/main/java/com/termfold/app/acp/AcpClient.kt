@@ -240,7 +240,7 @@ class AcpClient(
                 _state.update {
                     it.copy(
                         phase = AcpPhase.ERROR,
-                        errorDetail = failure.message ?: failure.javaClass.simpleName,
+                        errorDetail = withAgentOutput(failure.message ?: failure.javaClass.simpleName),
                     )
                 }
             }
@@ -252,6 +252,16 @@ class AcpClient(
         _state.update { it.copy(phase = AcpPhase.CLOSED, agentBusy = false, queued = emptyList()) }
         start()
     }
+
+    /** The agent's latest stderr lines, for error reports. */
+    private val stderrTail = ArrayDeque<String>()
+
+    private fun withAgentOutput(message: String): String {
+        val said = recentStderr()
+        return if (said.isBlank() || message.contains(said)) message else "$message\n\n$said"
+    }
+
+    private fun recentStderr(): String = synchronized(stderrTail) { stderrTail.joinToString("\n") }.trim()
 
     private fun failPending(reason: String) {
         pending.keys.toList().forEach { id ->
@@ -296,7 +306,11 @@ class AcpClient(
                 process.errorStream.bufferedReader().use { reader ->
                     while (true) {
                         val line = reader.readLine() ?: break
-                        Log.d("AcpAgent", line.take(500))
+                        Log.i("AcpAgent", line.take(500))
+                        synchronized(stderrTail) {
+                            stderrTail.addLast(line.take(400))
+                            while (stderrTail.size > 40) stderrTail.removeFirst()
+                        }
                     }
                 }
             }
@@ -315,9 +329,16 @@ class AcpClient(
             // The stream ending means the agent process is gone, and nothing will answer the
             // requests still waiting.
             failPending("Agent process exited")
+            // What the agent said on its way out is usually the actual reason.
+            val said = recentStderr()
+            val code = runCatching { process.waitFor(); process.exitValue() }.getOrNull()
             _state.update {
                 if (!closedByUser && it.phase != AcpPhase.ERROR && it.phase != AcpPhase.AUTH_REQUIRED) {
-                    it.copy(phase = AcpPhase.ERROR, errorDetail = "Agent process exited")
+                    it.copy(
+                        phase = AcpPhase.ERROR,
+                        errorDetail = "Agent process exited" + (code?.let { c -> " (code $c)" } ?: "") +
+                            if (said.isNotBlank()) ".\n\n$said" else "",
+                    )
                 } else {
                     it
                 }
@@ -584,7 +605,7 @@ class AcpClient(
         val looksAuthRelated = AUTH_HINTS.any { message.contains(it, ignoreCase = true) }
         val phase = if (agentSpeaking && looksAuthRelated) AcpPhase.AUTH_REQUIRED else AcpPhase.ERROR
         Log.w(TAG, "session/new failed ($phase): $message")
-        _state.update { it.copy(phase = phase, errorDetail = message) }
+        _state.update { it.copy(phase = phase, errorDetail = if (phase == AcpPhase.ERROR) withAgentOutput(message) else message) }
     }
 
     /**

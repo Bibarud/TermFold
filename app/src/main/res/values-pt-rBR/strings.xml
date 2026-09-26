@@ -281,4 +281,6 @@
     <string name="acp_history_search">Pesquisar sessões</string>
     <string name="acp_history_no_match">Nenhuma sessão corresponde a “%1$s”</string>
     <string name="acp_history_delete_confirm">Excluir esta sessão?</string>
+    <string name="acp_agent_unsupported_title">Não disponível como chat no Android</string>
+    <string name="acp_antigravity_unsupported">O servidor de chat do Google Antigravity não roda no Android. Use o comando agy numa sessão de Shell. Você pode excluir esta sessão de chat.</string>
 </resources>

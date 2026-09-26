@@ -281,4 +281,6 @@
     <string name="acp_history_search">सेशन खोजें</string>
     <string name="acp_history_no_match">“%1$s” से कोई सेशन मेल नहीं खाता</string>
     <string name="acp_history_delete_confirm">यह सेशन हटाएँ?</string>
+    <string name="acp_agent_unsupported_title">Android पर चैट के रूप में उपलब्ध नहीं</string>
+    <string name="acp_antigravity_unsupported">Google Antigravity का चैट सर्वर Android पर नहीं चल सकता। इसके बजाय Shell सेशन में agy कमांड इस्तेमाल करें। आप यह चैट सेशन हटा सकते हैं।</string>
 </resources>

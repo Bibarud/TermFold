@@ -281,4 +281,6 @@
     <string name="acp_history_search">搜索会话</string>
     <string name="acp_history_no_match">没有与“%1$s”匹配的会话</string>
     <string name="acp_history_delete_confirm">删除此会话？</string>
+    <string name="acp_agent_unsupported_title">在 Android 上无法以聊天方式使用</string>
+    <string name="acp_antigravity_unsupported">Google Antigravity 的聊天服务器无法在 Android 上运行。请在 Shell 会话中使用 agy 命令。你可以删除此聊天会话。</string>
 </resources>

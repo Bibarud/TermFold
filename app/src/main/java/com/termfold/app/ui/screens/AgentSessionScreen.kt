@@ -162,7 +162,10 @@ fun AgentSessionScreen(
         Column(modifier = modifier.fillMaxSize()) {
             SessionHeader(title = agentId, subtitle = folder.name, iconUrl = "", onBack = onBack)
             CenterPanel {
-                if (registryFailed) {
+                if (agentId in com.termfold.app.acp.AcpRegistry.UNSUPPORTED) {
+                    PanelTitle(stringResource(R.string.acp_agent_unsupported_title))
+                    PanelBody(stringResource(R.string.acp_antigravity_unsupported))
+                } else if (registryFailed) {
                     PanelTitle(stringResource(R.string.acp_agent_unavailable))
                     PanelBody(stringResource(R.string.acp_registry_offline))
                     Spacer(Modifier.height(16.dp))
