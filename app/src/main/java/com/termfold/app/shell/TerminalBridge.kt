@@ -70,12 +70,6 @@ class TerminalBridge(
         altKey = down
     }
 
-    /**
-     * Sends Ctrl+C. The soft keyboard can produce it, but every TUI in practice needs a dedicated
-     * way to interrupt, and hunting for Ctrl on a phone keyboard is not one.
-     */
-    fun sendControlC() = writeToTerminal("\u0003")
-
     /** Sends Escape, which the soft keyboard usually cannot produce at all. */
     fun sendEscape() = writeToTerminal("\u001b")
 

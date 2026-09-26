@@ -25,7 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.toClipEntry
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.termfold.app.ui.theme.Mono
 import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldIcons
@@ -248,7 +250,8 @@ private fun MarkdownTable(
 /** A fenced code block: monospace, horizontally scrollable, with a copy action. */
 @Composable
 fun CodeBlock(language: String, code: String, modifier: Modifier = Modifier) {
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -271,7 +274,11 @@ fun CodeBlock(language: String, code: String, modifier: Modifier = Modifier) {
             BareIconButton(
                 icon = TermFoldIcons.Copy,
                 contentDescription = "Copy code",
-                onClick = { clipboard.setText(AnnotatedString(code)) },
+                onClick = {
+                    scope.launch {
+                        clipboard.setClipEntry(android.content.ClipData.newPlainText("code", code).toClipEntry())
+                    }
+                },
                 size = 32,
                 tint = Palette.TextFaint,
             )

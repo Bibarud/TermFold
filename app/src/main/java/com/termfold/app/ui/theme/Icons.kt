@@ -37,22 +37,6 @@ object TermFoldIcons {
             .build()
     }
 
-    /** Outlined folder, used where a stroked icon matches its neighbours. */
-    val FolderOutline: ImageVector by lazy {
-        ImageVector.Builder("FolderOutline", 24.dp, 24.dp, 24f, 24f)
-            .addPath(
-                pathData = addPathNodes(
-                    "M4.1,7.4 C4.1,6.02 5.22,4.9 6.6,4.9 H9.0 C9.7,4.9 10.36,5.2 10.82,5.72 " +
-                        "L11.9,6.95 H17.4 C18.78,6.95 19.9,8.07 19.9,9.45 V16.1 " +
-                        "C19.9,17.48 18.78,18.6 17.4,18.6 H6.6 C5.22,18.6 4.1,17.48 4.1,16.1 Z"
-                ),
-                stroke = SolidColor(Color.White),
-                strokeLineWidth = STROKE,
-                strokeLineJoin = StrokeJoin.Round,
-            )
-            .build()
-    }
-
     /** Solid folder with a tab, matching the filled folder in the design. */
     val Folder: ImageVector by lazy {
         ImageVector.Builder("Folder", 24.dp, 24.dp, 24f, 24f)
@@ -441,6 +425,123 @@ object TermFoldIcons {
                 "C20.2,18.4 19.4,19.2 18.4,19.2 H5.6 C4.6,19.2 3.8,18.4 3.8,17.4 Z",
             "M8.4,13 H15.2",
             "M12.8,10.6 L15.2,13 L12.8,15.4",
+        )
+    }
+
+    /** An arrow up out of a tray: upload into the current folder. */
+    val Upload: ImageVector by lazy {
+        stroked("Upload", "M12,15.5 V4.5", "M7.8,8.7 L12,4.5 L16.2,8.7", "M4.8,14.5 V18 C4.8,18.8 5.4,19.5 6.3,19.5 H17.7 C18.6,19.5 19.2,18.8 19.2,18 V14.5")
+    }
+
+    /** A tablet with an arrow coming down onto it: save a copy to the device. */
+    val SaveToDevice: ImageVector by lazy {
+        stroked(
+            "SaveToDevice",
+            "M7.5,3.8 H16.5 C17.3,3.8 18,4.5 18,5.3 V18.7 C18,19.5 17.3,20.2 16.5,20.2 H7.5 C6.7,20.2 6,19.5 6,18.7 V5.3 C6,4.5 6.7,3.8 7.5,3.8 Z",
+            "M12,7.5 V14.2",
+            "M9.4,11.8 L12,14.4 L14.6,11.8",
+            "M10.8,17.4 H13.2",
+        )
+    }
+
+    private const val FOLDER_OUTLINE =
+        "M3.8,6.6 C3.8,5.6 4.6,4.8 5.6,4.8 H9 L10.8,6.8 H18.4 C19.4,6.8 20.2,7.6 20.2,8.6 V17.4 " +
+            "C20.2,18.4 19.4,19.2 18.4,19.2 H5.6 C4.6,19.2 3.8,18.4 3.8,17.4 Z"
+
+    /** A folder with an arrow leaving it: export to a folder on the device. */
+    val FolderExport: ImageVector by lazy {
+        stroked("FolderExport", FOLDER_OUTLINE, "M9.2,14.8 L14.6,9.4", "M11.2,9.4 H14.6 V12.8")
+    }
+
+    /** A folder with an arrow going in: import a folder from the device. */
+    val FolderImport: ImageVector by lazy {
+        stroked("FolderImport", FOLDER_OUTLINE, "M14.6,9.4 L9.2,14.8", "M9.2,11.4 V14.8 H12.6")
+    }
+
+    /** A box with an arrow out of its corner: open in another app. */
+    val OpenExternal: ImageVector by lazy {
+        stroked(
+            "OpenExternal",
+            "M11,5.5 H6.8 C6,5.5 5.4,6.1 5.4,6.9 V17.2 C5.4,18 6,18.6 6.8,18.6 H17.1 C17.9,18.6 18.5,18 18.5,17.2 V13",
+            "M13.8,4.8 H19.2 V10.2",
+            "M19.2,4.8 L11.4,12.6",
+        )
+    }
+
+    /** Two stacked pictures: copy an image to the clipboard. */
+    val ImageCopy: ImageVector by lazy {
+        stroked(
+            "ImageCopy",
+            "M8.2,7.6 H18.2 C19,7.6 19.6,8.2 19.6,9 V18.2 C19.6,19 19,19.6 18.2,19.6 H8.2 C7.4,19.6 6.8,19 6.8,18.2 V9 C6.8,8.2 7.4,7.6 8.2,7.6 Z",
+            "M4.4,15.8 V5.8 C4.4,5 5,4.4 5.8,4.4 H15.8",
+            "M7,17.4 L10.8,13.4 L13.4,16 L15.2,14.2 L19.4,18.2",
+            "M15.6,10.4 A1,1 0 1,1 15.59,10.4",
+        )
+    }
+
+    /** Magnifier with a plus: zoom. */
+    val ZoomIn: ImageVector by lazy {
+        stroked("ZoomIn", "M10.8,4.6 A6.2,6.2 0 1,1 10.79,4.6", "M15.2,15.2 L19.6,19.6", "M10.8,8.2 V13.4", "M8.2,10.8 H13.4")
+    }
+
+    /** Lines of decreasing length: sort. */
+    val Sort: ImageVector by lazy {
+        stroked("Sort", "M4.8,7 H19.2", "M4.8,12 H14.8", "M4.8,17 H10.4")
+    }
+
+    /** A grid of four squares: grid view. */
+    val Grid: ImageVector by lazy {
+        stroked(
+            "Grid",
+            "M5,5 H10.4 V10.4 H5 Z", "M13.6,5 H19 V10.4 H13.6 Z",
+            "M5,13.6 H10.4 V19 H5 Z", "M13.6,13.6 H19 V19 H13.6 Z",
+        )
+    }
+
+    /** Stacked rows: list view. */
+    val ListView: ImageVector by lazy {
+        stroked("ListView", "M8.6,6.5 H19.4", "M8.6,12 H19.4", "M8.6,17.5 H19.4", "M4.8,6.5 H5.2", "M4.8,12 H5.2", "M4.8,17.5 H5.2")
+    }
+
+    /** Three joined dots: share. */
+    val Share: ImageVector by lazy {
+        stroked(
+            "Share",
+            "M17.5,4.6 A2.4,2.4 0 1,1 17.49,4.6",
+            "M6.5,9.6 A2.4,2.4 0 1,1 6.49,9.6",
+            "M17.5,14.6 A2.4,2.4 0 1,1 17.49,14.6",
+            "M8.6,10.9 L15.4,7.1",
+            "M8.6,13.1 L15.4,16.9",
+        )
+    }
+
+    /** A clipboard: paste. */
+    val Paste: ImageVector by lazy {
+        stroked(
+            "Paste",
+            "M9,4.5 H15 V7 H9 Z",
+            "M9,5.8 H7 C6.2,5.8 5.5,6.5 5.5,7.3 V18.5 C5.5,19.3 6.2,20 7,20 H17 C17.8,20 18.5,19.3 18.5,18.5 V7.3 C18.5,6.5 17.8,5.8 17,5.8 H15",
+            "M9,12 H15",
+            "M9,15.5 H13",
+        )
+    }
+
+    /** An open eye: hidden files shown. */
+    val Eye: ImageVector by lazy {
+        stroked("Eye", "M2.8,12 C5,7.8 8.3,5.8 12,5.8 C15.7,5.8 19,7.8 21.2,12 C19,16.2 15.7,18.2 12,18.2 C8.3,18.2 5,16.2 2.8,12 Z", "M12,9.3 A2.7,2.7 0 1,1 11.99,9.3")
+    }
+
+    /** A struck-through eye: hidden files hidden. */
+    val EyeOff: ImageVector by lazy {
+        stroked("EyeOff", "M2.8,12 C5,7.8 8.3,5.8 12,5.8 C15.7,5.8 19,7.8 21.2,12 C19,16.2 15.7,18.2 12,18.2 C8.3,18.2 5,16.2 2.8,12 Z", "M4.5,4.5 L19.5,19.5")
+    }
+
+    /** Two branches joining: a git repository. */
+    val GitBranch: ImageVector by lazy {
+        stroked(
+            "GitBranch",
+            "M7,4.2 A2,2 0 1,1 6.99,4.2", "M7,15.8 A2,2 0 1,1 6.99,15.8", "M17,6.2 A2,2 0 1,1 16.99,6.2",
+            "M7,8.2 V15.8", "M17,10.2 C17,13.4 13.4,13.6 7,15.6",
         )
     }
 }

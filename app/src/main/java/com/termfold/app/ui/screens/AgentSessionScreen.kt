@@ -140,7 +140,7 @@ fun AgentSessionScreen(
 ) {
     val context = LocalContext.current
     val key = TerminalHost.sessionKey(folder.id, sessionId)
-    val guestDir = "/" + ShellConfig.guestWorkspaceName(folder.path)
+    val guestDir = com.termfold.app.shell.Projects.guestPath(context, folder.path) ?: ShellConfig.GUEST_HOME
 
     // The registry supplies the launch details and icon; its on-disk cache makes this instant
     // after the first load. Offline with no cache there is nothing to launch, so say so.
@@ -178,7 +178,6 @@ fun AgentSessionScreen(
                 context = context.applicationContext,
                 sessionKey = key,
                 agent = resolved,
-                workspacePath = folder.path.takeIf { it.isNotBlank() },
                 workspaceGuestDir = guestDir,
             ),
         )
@@ -1810,7 +1809,7 @@ private fun SlashMenu(matches: List<AcpCommand>, highlighted: Int, onPick: (AcpC
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (active) Palette.AccentSoft else Color.Transparent)
+                    .background(if (active) Palette.CardPressed else Color.Transparent)
                     .clickable { onPick(command) }
                     .padding(horizontal = 10.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,

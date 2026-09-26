@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What FileActions may hand to other apps, one file at a time and only with a read grant:
+     files inside the Ubuntu environment (projects, uploads) and zips made for sharing. -->
+<paths>
+    <files-path name="linux" path="linux/rootfs/" />
+    <cache-path name="share" path="share/" />
+</paths>

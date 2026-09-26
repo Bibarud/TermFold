@@ -1,6 +1,5 @@
 package com.termfold.app.shell
 
-import android.util.Log
 import java.io.File
 import java.io.InputStream
 import java.nio.file.Files

@@ -8,4 +8,24 @@
         <item quantity="one">%d trabajando ahora</item>
         <item quantity="other">%d trabajando ahora</item>
     </plurals>
+    <plurals name="fm_uploaded">
+        <item quantity="one">%d archivo subido</item>
+        <item quantity="other">%d archivos subidos</item>
+    </plurals>
+    <plurals name="fm_exported">
+        <item quantity="one">%d archivo exportado</item>
+        <item quantity="other">%d archivos exportados</item>
+    </plurals>
+    <plurals name="fm_clip_copied">
+        <item quantity="one">%d elemento copiado</item>
+        <item quantity="other">%d elementos copiados</item>
+    </plurals>
+    <plurals name="fm_clip_cut">
+        <item quantity="one">%d elemento para mover</item>
+        <item quantity="other">%d elementos para mover</item>
+    </plurals>
+    <plurals name="project_sessions">
+        <item quantity="one">%d sesión</item>
+        <item quantity="other">%d sesiones</item>
+    </plurals>
 </resources>

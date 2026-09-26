@@ -35,8 +35,6 @@ import com.termfold.app.R
 import com.termfold.app.core.Folder
 import com.termfold.app.ui.components.BareIconButton
 import com.termfold.app.ui.components.BottomNavSpacer
-import com.termfold.app.ui.components.CircleIconButton
-import com.termfold.app.ui.components.LeadingTile
 import com.termfold.app.ui.components.ListRow
 import com.termfold.app.ui.components.RowSpacer
 import com.termfold.app.ui.theme.Palette
@@ -143,26 +141,14 @@ fun FolderDetailScreen(
                     .clickable(onClick = onRenameFolder),
             )
 
-            CircleIconButton(
+            com.termfold.app.ui.components.PrimaryButton(
                 icon = TermFoldIcons.Plus,
-                contentDescription = stringResource(R.string.cd_add_session),
+                label = stringResource(R.string.new_session_title),
                 onClick = onAddSession,
-                primary = true,
-                size = 46,
             )
         }
 
         Spacer(Modifier.height(20.dp))
-
-        if (folder.path.isBlank()) {
-            UnmappedPathNotice(
-                modifier = Modifier.padding(
-                    start = edge,
-                    end = if (wide) 26.dp else 16.dp,
-                )
-            )
-            Spacer(Modifier.height(14.dp))
-        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -229,36 +215,6 @@ private fun SessionMarkCompact() {
             contentDescription = null,
             tint = Palette.Text,
             modifier = Modifier.size(22.dp),
-        )
-    }
-}
-
-/**
- * Shown when the picked provider cannot be mapped onto a real filesystem path — cloud and
- * virtual providers have no directory Termux could `cd` into, so the user needs to know before
- * a session silently starts somewhere unexpected.
- */
-@Composable
-private fun UnmappedPathNotice(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Palette.Card)
-            .padding(18.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.unmapped_path_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = Palette.Text,
-            )
-        }
-        Spacer(Modifier.size(10.dp))
-        Text(
-            text = stringResource(R.string.unmapped_path_body),
-            style = MaterialTheme.typography.bodyMedium,
-            color = Palette.TextDim,
         )
     }
 }

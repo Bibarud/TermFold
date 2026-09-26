@@ -1,17 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!--
-      Needed so the bundled Ubuntu environment can reach apt, pip, npm and the agents.
-
-      READ/WRITE_EXTERNAL_STORAGE give the app's own process real read/write access to shared
-      storage, which is what lets a folder the user picked be bind-mounted into the guest as an
-      ordinary directory instead of a content:// handle.
-    -->
+    <!-- Needed so the bundled Ubuntu environment can reach apt, pip, npm and the agents. Projects
+         live in the app's own storage; files from elsewhere come in through the system pickers,
+         which need no storage permission. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 
     <!-- "Agent finished" alerts, the bubble, and the ongoing notification that keeps sessions
          running while the user is in other apps. -->
@@ -55,6 +49,49 @@
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.TermFold" />
+
+        <!-- "Share → TermFold" from any app: any file type, several at once, or text and links. -->
+        <activity
+            android:name=".ShareReceiverActivity"
+            android:exported="true"
+            android:label="@string/share_title"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.TermFold.Translucent">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- The Linux home folder as a location in Android's file picker (no storage permission:
+             only the system picker, driven by the user, can reach it). -->
+        <provider
+            android:name=".files.TermFoldDocumentsProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <!-- Hands a single file to another app (share, open with) with a temporary read grant. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <service
             android:name=".notify.KeepAliveService"

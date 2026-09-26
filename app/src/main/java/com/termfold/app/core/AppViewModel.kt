@@ -6,7 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.termfold.app.data.FolderStore
-import com.termfold.app.data.SafPaths
+import com.termfold.app.shell.Projects
 import com.termfold.app.shell.ShellRuntime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +17,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** A project being created in the background (a git clone or a device-folder import). */
+data class ProjectJob(
+    val title: String,
+    val progress: String = "",
+    val error: String? = null,
+    val done: Boolean = false,
+    /** The new project, once it exists. */
+    val folderId: String? = null,
+)
 
 /** Whether the bundled Linux environment has been unpacked yet. */
 enum class ShellState { UNKNOWN, PREPARING, READY, FAILED, UNSUPPORTED }
@@ -38,6 +48,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _shell = MutableStateFlow(ShellProgress())
     val shell: StateFlow<ShellProgress> = _shell.asStateFlow()
+
+    private val _job = MutableStateFlow<ProjectJob?>(null)
+    val job: StateFlow<ProjectJob?> = _job.asStateFlow()
+
+    fun dismissJob() {
+        if (_job.value?.done == true || _job.value?.error != null) _job.value = null
+    }
 
     init {
         // Provisioning is started from the UI rather than here, so a failure surfaces on screen
@@ -103,24 +120,97 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ensureShellReady()
     }
 
-    fun addFolder(treeUri: Uri, name: String?) {
-        val display = name?.takeIf { it.isNotBlank() }
-            ?: SafPaths.displayName(treeUri)
-            ?: "Folder"
-        val path = SafPaths.realPath(getApplication(), treeUri).orEmpty()
-
-        viewModelScope.launch {
+    /**
+     * Makes the project list match `~/projects`: a folder created there from a shell appears,
+     * one deleted there disappears, and entries for folders outside the Ubuntu environment
+     * (the old Android-storage folders) are dropped. The files of those stay on the device.
+     */
+    fun syncProjects() {
+        val app = getApplication<Application>()
+        if (!ShellRuntime.isReady(app)) return
+        viewModelScope.launch(Dispatchers.IO) {
+            val dirs = Projects.dir(app).apply { mkdirs() }
+                .listFiles { f -> f.isDirectory && !f.name.startsWith(".") }
+                .orEmpty()
+                .sortedBy { it.name.lowercase() }
             store.update { data ->
-                data.copy(
-                    folders = data.folders + Folder(
-                        id = Ids.new(),
-                        name = display,
-                        treeUri = treeUri.toString(),
-                        path = path,
-                        tint = data.folders.size % 6,
-                        sessions = defaultSessions(),
-                    )
-                )
+                val kept = data.folders.filter { f ->
+                    Projects.isInGuest(app, f.path) && java.io.File(f.path).isDirectory
+                }
+                val known = kept.map { java.io.File(it.path).absolutePath }.toSet()
+                val added = dirs.filter { it.absolutePath !in known }.mapIndexed { i, dir ->
+                    newFolder(dir, dir.name, (kept.size + i) % 6)
+                }
+                if (added.isEmpty() && kept.size == data.folders.size) data else data.copy(folders = kept + added)
+            }
+        }
+    }
+
+    private fun newFolder(dir: java.io.File, name: String, tint: Int) = Folder(
+        id = Ids.new(),
+        name = name,
+        path = dir.absolutePath,
+        tint = tint,
+        sessions = defaultSessions(),
+    )
+
+    private suspend fun addProject(dir: java.io.File, name: String): String {
+        val folder = newFolder(dir, name, folders.value.folders.size % 6)
+        store.update { data -> data.copy(folders = data.folders + folder) }
+        return folder.id
+    }
+
+    /** An empty project. Calls [onCreated] with its id. */
+    fun createProject(name: String, onCreated: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            val dir = withContext(Dispatchers.IO) { Projects.create(getApplication(), name) }
+            onCreated(addProject(dir, name.trim().ifEmpty { dir.name }))
+        }
+    }
+
+    /** Clones a git repository into a new project, reporting progress through [job]. */
+    fun cloneProject(url: String, name: String) {
+        val app = getApplication<Application>()
+        val display = name.trim().ifEmpty {
+            url.trimEnd('/').substringAfterLast('/').removeSuffix(".git").ifEmpty { "project" }
+        }
+        _job.value = ProjectJob(title = display, progress = "Starting…")
+        viewModelScope.launch {
+            val dir = withContext(Dispatchers.IO) { Projects.newDirFor(app, display) }
+            val error = withContext(Dispatchers.IO) {
+                runCatching {
+                    Projects.clone(app, url.trim(), dir) { line -> _job.update { it?.copy(progress = line) } }
+                }.getOrElse { it.message ?: "clone failed" }
+            }
+            if (error != null) {
+                withContext(Dispatchers.IO) { dir.deleteRecursively() }
+                _job.update { it?.copy(error = error) }
+            } else {
+                val id = addProject(dir, display)
+                _job.update { it?.copy(done = true, folderId = id, progress = "") }
+            }
+        }
+    }
+
+    /** Copies a folder from the device into a new project, reporting progress through [job]. */
+    fun importProject(treeUri: Uri) {
+        val app = getApplication<Application>()
+        val display = androidx.documentfile.provider.DocumentFile.fromTreeUri(app, treeUri)?.name
+            ?.takeIf { it.isNotBlank() } ?: "Imported"
+        _job.value = ProjectJob(title = display, progress = "Copying…")
+        viewModelScope.launch {
+            val dir = withContext(Dispatchers.IO) { Projects.newDirFor(app, display) }
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    Projects.importTree(app, treeUri, dir) { p -> _job.update { it?.copy(progress = p) } }
+                }
+            }
+            result.onSuccess { count ->
+                val id = addProject(dir, display)
+                _job.update { it?.copy(done = true, folderId = id, progress = "$count files") }
+            }.onFailure { e ->
+                withContext(Dispatchers.IO) { dir.deleteRecursively() }
+                _job.update { it?.copy(error = e.message ?: "import failed") }
             }
         }
     }
@@ -138,9 +228,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun removeFolder(folderId: String) {
+        val app = getApplication<Application>()
         viewModelScope.launch {
+            val folder = folders.value.folder(folderId)
             store.update { data ->
                 data.copy(folders = data.folders.filterNot { it.id == folderId })
+            }
+            // A project's files live only inside the app, so removing it deletes them (the
+            // confirmation says so). Anything outside ~/projects is never touched.
+            val path = folder?.path
+            if (path != null) {
+                withContext(Dispatchers.IO) {
+                    val dir = java.io.File(path)
+                    val projects = Projects.dir(app).absolutePath + "/"
+                    if (dir.absolutePath.startsWith(projects)) dir.deleteRecursively()
+                }
             }
         }
     }

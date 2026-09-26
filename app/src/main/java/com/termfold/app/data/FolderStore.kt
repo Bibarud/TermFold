@@ -55,7 +55,6 @@ class FolderStore(private val context: Context) {
         return Folder(
             id = getString("id"),
             name = getString("name"),
-            treeUri = getString("treeUri"),
             path = optString("path"),
             tint = optInt("tint"),
             sessions = List(sessions.length()) { index ->
@@ -86,7 +85,6 @@ class FolderStore(private val context: Context) {
         return JSONObject()
             .put("id", id)
             .put("name", name)
-            .put("treeUri", treeUri)
             .put("path", path)
             .put("tint", tint)
             .put("sessions", sessionArray)

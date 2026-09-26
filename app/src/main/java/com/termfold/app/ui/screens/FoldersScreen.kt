@@ -1,6 +1,7 @@
 package com.termfold.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -30,10 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,11 +51,9 @@ import com.termfold.app.R
 import com.termfold.app.core.Folder
 import com.termfold.app.ui.components.BareIconButton
 import com.termfold.app.ui.components.BottomNavSpacer
-import com.termfold.app.ui.components.CircleIconButton
 import com.termfold.app.ui.components.CountChevron
 import com.termfold.app.ui.components.LeadingTile
 import com.termfold.app.ui.components.ListRow
-import com.termfold.app.ui.components.RowSpec
 import com.termfold.app.ui.components.RowSpacer
 import com.termfold.app.ui.components.SectionTitle
 import com.termfold.app.ui.theme.Mono
@@ -138,12 +133,10 @@ fun FoldersScreen(
                 )
                 Spacer(Modifier.size(8.dp))
             }
-            CircleIconButton(
+            com.termfold.app.ui.components.PrimaryButton(
                 icon = TermFoldIcons.Plus,
-                contentDescription = androidx.compose.ui.res.stringResource(R.string.cd_add_folder),
+                label = androidx.compose.ui.res.stringResource(R.string.project_new),
                 onClick = onAddFolder,
-                primary = true,
-                size = 46,
             )
         }
 
@@ -209,10 +202,10 @@ private fun FolderCard(folder: Folder, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(Palette.Card)
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 20.dp),
+            .padding(horizontal = 18.dp, vertical = 18.dp),
     ) {
         Icon(
             imageVector = TermFoldIcons.Folder,
@@ -233,20 +226,11 @@ private fun FolderCard(folder: Folder, onClick: () -> Unit) {
 
         Spacer(Modifier.height(10.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = folder.sessions.size.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Palette.TextDim,
-            )
-            Spacer(Modifier.size(6.dp))
-            Icon(
-                imageVector = TermFoldIcons.ChevronRight,
-                contentDescription = null,
-                tint = Palette.TextFaint,
-                modifier = Modifier.size(18.dp),
-            )
-        }
+        Text(
+            text = androidx.compose.ui.res.pluralStringResource(R.plurals.project_sessions, folder.sessions.size, folder.sessions.size),
+            style = MaterialTheme.typography.bodySmall,
+            color = Palette.TextDim,
+        )
     }
 }
 
@@ -452,7 +436,8 @@ fun PresetChips(
                 modifier = Modifier
                     .height(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (active) Palette.AccentSoft else Palette.Field)
+                    .background(if (active) Palette.CardPressed else Palette.Field)
+                    .border(1.dp, if (active) Palette.TextFaint else Color.Transparent, RoundedCornerShape(12.dp))
                     .clickable { onSelect(index) }
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center,
@@ -462,7 +447,7 @@ fun PresetChips(
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
                     ),
-                    color = if (active) Palette.Accent else Palette.TextDim,
+                    color = if (active) Palette.Text else Palette.TextDim,
                     maxLines = 1,
                     softWrap = false,
                 )

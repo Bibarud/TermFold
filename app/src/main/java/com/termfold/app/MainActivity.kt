@@ -1,7 +1,6 @@
 package com.termfold.app
 
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -32,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -69,10 +67,11 @@ import com.termfold.app.ui.components.BottomNav
 import com.termfold.app.ui.components.NavRail
 import com.termfold.app.ui.components.currentWindowWidth
 import com.termfold.app.ui.components.isWide
-import com.termfold.app.ui.components.GlowScaffold
+import com.termfold.app.ui.components.AppSurface
 import com.termfold.app.ui.components.NavTab
 import com.termfold.app.ui.screens.AgentSessionScreen
 import com.termfold.app.ui.screens.ConfirmDialog
+import com.termfold.app.ui.screens.FileManagerScreen
 import com.termfold.app.ui.screens.FilesWorkspace
 import com.termfold.app.ui.screens.FolderDetailScreen
 import com.termfold.app.ui.screens.FoldersScreen
@@ -156,18 +155,6 @@ open class TermFoldActivity : ComponentActivity() {
     }
 }
 
-/**
- * The storage permissions this app needs, in the order they are requested.
- *
- * `READ_EXTERNAL_STORAGE` is capped at API 32: from API 33 the platform splits it into the media
- * permissions, none of which grant access to an arbitrary folder. Access to a folder the user
- * picked comes from the folder picker's own grant plus the legacy storage model this app targets,
- * and these are what make the app's own process treat it as an ordinary directory.
- */
-private val REQUIRED_STORAGE_PERMISSIONS = listOf(
-    android.Manifest.permission.READ_EXTERNAL_STORAGE,
-    android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
-)
 
 /** Destinations. Plain state is enough for a graph this shallow. */
 private sealed interface Destination {    data object Tabs : Destination
@@ -247,6 +234,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
     }
     var filesOpen by rememberSaveable { mutableStateOf(false) }
     var tab by remember { mutableStateOf(NavTab.FOLDERS) }
+    var newProject by remember { mutableStateOf(false) }
+    val job by viewModel.job.collectAsStateWithLifecycle()
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
 
@@ -258,16 +247,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
     val pickFolder = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
         onResult = { uri: Uri? ->
-            if (uri != null) {
-                // Without this the grant dies with the process and stored folders become unreadable.
-                runCatching {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                    )
-                }
-                viewModel.addFolder(uri, null)
-            }
+            if (uri != null) viewModel.importProject(uri)
             searchOpen = false
         },
     )
@@ -276,23 +256,22 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
     // costs a few seconds and is then never repeated.
     LaunchedEffect(Unit) { viewModel.ensureShellReady() }
 
-    // Storage access has to be requested at runtime. Without it the app cannot read a folder the
-    // user picked, and the failure surfaces far away from the cause: the folder is bind-mounted
-    // into the guest but every access inside the terminal returns "Permission denied".
-    val storagePermissions = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { },
-    )
-    LaunchedEffect(Unit) {
-        val missing = REQUIRED_STORAGE_PERMISSIONS.filter { permission ->
-            ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED
+    // Projects are folders in ~/projects; the list follows that folder (a project made with
+    // mkdir in a shell appears, a deleted one goes), checked on start and on every return.
+    LaunchedEffect(shell.state) { viewModel.syncProjects() }
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) viewModel.syncProjects()
         }
-        if (missing.isNotEmpty()) storagePermissions.launch(missing.toTypedArray())
+        lifecycle.lifecycle.addObserver(observer)
+        onDispose { lifecycle.lifecycle.removeObserver(observer) }
     }
+
 
     when (shell.state) {
         ShellState.UNKNOWN, ShellState.PREPARING -> {
-            GlowScaffold {
+            AppSurface {
                 ProvisioningScreen(
                     step = shell.step,
                     progress = shell.fraction,
@@ -304,7 +283,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
         }
 
         ShellState.FAILED -> {
-            GlowScaffold {
+            AppSurface {
                 ProvisioningScreen(
                     step = shell.step,
                     progress = shell.fraction,
@@ -322,7 +301,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
 
     // Phone and tablet share one tree; only the navigation container and the folder presentation
     // differ, so there is no second layout to keep in sync.
-    GlowScaffold {
+    AppSurface {
         Row(modifier = Modifier.fillMaxSize()) {
             if (windowWidth.isWide) {
                 // The rail is visible over every destination, so picking a tab must also leave
@@ -382,7 +361,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                                     query = query,
                                     onQueryChange = { query = it },
                                     onOpenFolder = { destination = Destination.Folder(it) },
-                                    onAddFolder = { pickFolder.launch(null) },
+                                    onAddFolder = { newProject = true },
                                     onSearchToggle = {
                                         searchOpen = !searchOpen
                                         if (!searchOpen) query = ""
@@ -391,6 +370,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                                     onMore = { tab = NavTab.SETTINGS },
                                     useGrid = windowWidth.isWide,
                                 )
+
+                                NavTab.FILES -> FileManagerScreen(wide = windowWidth.isWide)
 
                                 NavTab.SETTINGS -> SettingsScreen(
                                     shellState = shell.state,
@@ -496,6 +477,34 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
         }
     }
 
+    if (newProject) {
+        com.termfold.app.ui.screens.NewProjectDialog(
+            onCreateEmpty = { name ->
+                newProject = false
+                viewModel.createProject(name) { id -> destination = Destination.Folder(id) }
+            },
+            onClone = { url, name ->
+                newProject = false
+                viewModel.cloneProject(url, name)
+            },
+            onImport = {
+                newProject = false
+                pickFolder.launch(null)
+            },
+            onDismiss = { newProject = false },
+        )
+    }
+    job?.let { j ->
+        com.termfold.app.ui.screens.ProjectJobDialog(
+            job = j,
+            onOpen = { id ->
+                viewModel.dismissJob()
+                destination = Destination.Folder(id)
+            },
+            onDismiss = { viewModel.dismissJob() },
+        )
+    }
+
     OptionsLayer(
         viewModel = viewModel,
         optionsFor = optionsFor,
@@ -557,9 +566,9 @@ private fun OptionsLayer(
     confirmDelete?.let { target ->
         val isFolder = target is OptionsTarget.Folder
         ConfirmDialog(
-            title = stringResource(R.string.action_remove),
-            body = folderNameFor(target.folderId),
-            confirmLabel = stringResource(R.string.action_remove),
+            title = if (isFolder) stringResource(R.string.project_delete_title, folderNameFor(target.folderId)) else stringResource(R.string.action_remove),
+            body = if (isFolder) stringResource(R.string.project_delete_body) else folderNameFor(target.folderId),
+            confirmLabel = if (isFolder) stringResource(R.string.files_delete) else stringResource(R.string.action_remove),
             onConfirm = {
                 if (isFolder) {
                     // End the folder's running sessions before the definitions disappear,
@@ -690,7 +699,7 @@ private fun NewSessionDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(if (active) Palette.AccentSoft else Color.Transparent)
+                                        .background(if (active) Palette.CardPressed else Color.Transparent)
                                         .clickable {
                                             selectedAgent = entry
                                             if (name.isBlank()) name = entry.name

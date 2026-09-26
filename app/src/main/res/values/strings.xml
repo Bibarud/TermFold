@@ -1,25 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">TermFold</string>
+    <string name="app_name" translatable="false">TermFold</string>
 
-    <string name="folders_title">Folders</string>
+    <string name="folders_title">Projects</string>
     <string name="settings_title">Settings</string>
     <string name="new_session_title">New session</string>
 
-    <string name="action_open_terminal">Open terminal</string>
-    <string name="action_run">Run</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_add">Add</string>
     <string name="action_remove">Remove</string>
     <string name="action_copy">Copy</string>
-    <string name="action_copied">Copied</string>
     <string name="action_retry">Retry</string>
-    <string name="action_install">Install</string>
     <string name="action_restart">Restart</string>
     <string name="action_reset">Reset</string>
     <string name="action_repair">Repair</string>
     <string name="acp_status_connecting">Connecting…</string>
-    <string name="acp_chip">ACP</string>
+    <string name="acp_chip" translatable="false">ACP</string>
     <string name="acp_thinking">Thinking</string>
     <string name="acp_auth_required">Authentication required</string>
     <string name="acp_auth_body">Open a Shell session in this folder and sign in to the agent there (for example run claude, codex login, or pi), then come back and tap Retry. The sign-in is shared with this session.</string>
@@ -74,6 +70,81 @@
     <string name="files_cursor">Ln %1$d, Col %2$d</string>
     <string name="files_unsaved_title">Discard changes?</string>
     <string name="files_discard">Discard</string>
+    <string name="cd_files">Files</string>
+    <string name="project_new">New project</string>
+    <string name="project_empty">Empty project</string>
+    <string name="project_empty_desc">A new folder in ~/projects</string>
+    <string name="project_clone">Clone from Git</string>
+    <string name="project_clone_desc">GitHub, GitLab or any git URL</string>
+    <string name="project_import">Import from device</string>
+    <string name="project_import_desc">Copy a folder from your phone or tablet</string>
+    <string name="project_name_hint">Project name</string>
+    <string name="project_name_optional">Name (optional)</string>
+    <string name="project_import_note">The folder is copied into TermFold\'s Linux storage, where every tool works like on a PC. The original stays where it is.</string>
+    <string name="project_choose_folder">Choose folder</string>
+    <string name="project_job_working">Setting up %1$s…</string>
+    <string name="project_job_done">%1$s is ready</string>
+    <string name="project_job_failed">Could not set up %1$s</string>
+    <string name="project_open">Open</string>
+    <string name="project_delete_title">Delete %1$s?</string>
+    <string name="project_delete_body">The project and all its files are deleted from TermFold. To keep a copy, save it to your device from Files first (or push it with git).</string>
+    <string name="fm_upload">Upload files</string>
+    <string name="fm_uploading">Uploading…</string>
+    <string name="fm_saving">Saving…</string>
+    <string name="fm_saved">Saved %1$s</string>
+    <string name="fm_preparing">Preparing…</string>
+    <string name="fm_pasting">Pasting…</string>
+    <string name="fm_deleting">Deleting…</string>
+    <string name="fm_selected">%1$d selected</string>
+    <string name="fm_hidden">Show hidden files</string>
+    <string name="fm_cut">Cut</string>
+    <string name="fm_share">Share</string>
+    <string name="fm_open_with">Open with…</string>
+    <string name="fm_save_device">Save to device</string>
+    <string name="fm_save_zip">Save to device as .zip</string>
+    <string name="fm_delete_n">Delete %1$d items?</string>
+    <string name="fm_delete_n_body">They are removed for good. This cannot be undone.</string>
+    <string name="fm_empty_hint">Upload files, or create one with the buttons above.</string>
+    <string name="files_upload_here">Upload here</string>
+    <string name="fm_upload_files">Files (any type)</string>
+    <string name="provider_summary">Linux home folder</string>
+    <string name="provider_home">Home</string>
+    <string name="fm_export">Export to folder…</string>
+    <string name="fm_exporting">Exporting…</string>
+    <string name="fm_exporting_n">Exporting… %1$d files</string>
+    <string name="fm_upload_folder">A whole folder</string>
+    <string name="fm_home">Home</string>
+    <string name="fm_system">System</string>
+    <string name="fm_no_projects">No projects yet.</string>
+    <string name="fm_up">Up one folder</string>
+    <string name="fm_new">New</string>
+    <string name="fm_view">View</string>
+    <string name="fm_sort">Sort by</string>
+    <string name="fm_sort_name">Name</string>
+    <string name="fm_sort_modified">Date modified</string>
+    <string name="fm_sort_size">Size</string>
+    <string name="fm_view_list">List</string>
+    <string name="fm_view_grid">Grid</string>
+    <string name="fm_search_hint">Search this folder</string>
+    <string name="fm_no_results">Nothing matches “%1$s”</string>
+    <string name="fm_search_scope">Search looks in this folder and every folder inside it.</string>
+    <string name="fm_search_more">Showing the first %1$d matches. Type more to narrow it down.</string>
+    <string name="fm_select_all">Select all</string>
+    <string name="fm_unreadable">This folder can\'t be opened.</string>
+    <string name="fm_unreadable_hint">Its permissions don\'t allow reading it. From a shell, chmod can change that.</string>
+    <string name="fm_paste_here">Paste here</string>
+    <string name="fm_copy_path">Copy path</string>
+    <string name="fm_path_copied">Path copied</string>
+    <string name="img_copy">Copy image</string>
+    <string name="img_copied">Image copied</string>
+    <string name="img_open_with">Open with</string>
+    <string name="img_save">Save</string>
+    <string name="share_title">Save to TermFold</string>
+    <string name="share_body">Choose where to put %1$s.</string>
+    <string name="share_home">Home folder (~)</string>
+    <string name="share_saved">Saved to %1$s</string>
+    <string name="share_nothing">Nothing to save: the other app did not send a file.</string>
+    <string name="share_not_ready">Open TermFold once to finish setting up Linux, then share again.</string>
     <string name="terminal_find">Search the terminal</string>
     <string name="settings_terminal">Terminal colours</string>
     <string name="terminal_find_hint">Find in terminal</string>
@@ -110,7 +181,6 @@
     <string name="settings_notify_allow">Turn on</string>
     <string name="settings_battery">Run without battery limits</string>
     <string name="settings_battery_desc">Stops Android from pausing or closing TermFold while agents work in the background. Recommended on Lenovo, Xiaomi, Samsung and similar.</string>
-    <string name="settings_battery_on">TermFold is exempt from battery optimisation.</string>
     <string name="settings_battery_off">Android may still pause TermFold when the screen is off.</string>
     <string name="settings_battery_allow">Allow</string>
     <string name="files_delete">Delete</string>
@@ -126,8 +196,8 @@
     <string name="files_name_invalid">A name can\'t contain / or be . or ..</string>
     <string name="files_delete_title">Delete %1$s?</string>
     <string name="files_delete_folder_title">Delete the folder %1$s?</string>
-    <string name="files_delete_body">The file is removed from the folder on your device. This cannot be undone.</string>
-    <string name="files_delete_folder_body">The folder and everything in it are removed from your device. This cannot be undone.</string>
+    <string name="files_delete_body">The file is deleted for good. This cannot be undone.</string>
+    <string name="files_delete_folder_body">The folder and everything in it are deleted for good. This cannot be undone.</string>
     <string name="files_delete_failed">Could not delete: %1$s</string>
     <string name="files_delete_denied">the file could not be removed (it may be read-only or in use).</string>
     <string name="files_unsaved_body">%1$s has changes that are not saved.</string>
@@ -139,53 +209,42 @@
     <string name="acp_registry_offline">Could not load the ACP registry. Check your connection.</string>
     <string name="acp_session_hint">Opens as a native agent interface instead of a shell</string>
 
-    <string name="empty_folders">No folders yet.</string>
-    <string name="empty_folders_hint">Use + to pick a folder.</string>
-    <string name="empty_sessions">No sessions yet.</string>
-    <string name="empty_sessions_hint">Use + to add one.</string>
-    <string name="terminal_placeholder">Type a command…</string>
-    <string name="terminal_empty">Run a command to see output here.</string>
+    <string name="empty_folders">No projects yet.</string>
+    <string name="empty_folders_hint">Use + to start one: an empty folder, a git clone, or a copy of a folder from your device.</string>
     <string name="terminal_exited">Shell exited</string>
 
     <string name="cd_name">Name</string>
     <string name="cd_back">Back</string>
     <string name="cd_search">Search</string>
     <string name="cd_more">More options</string>
-    <string name="cd_add_folder">Add folder</string>
+    <string name="cd_add_folder">New project</string>
     <string name="cd_add_session">Add session</string>
     <string name="cd_send">Send</string>
-    <string name="cd_expand">Open terminal</string>
-    <string name="cd_home">Folders</string>
+    <string name="cd_home">Projects</string>
     <string name="cd_settings">Settings</string>
-    <string name="cd_session">Sessions</string>
-    <string name="cd_clear">Clear</string>
-
-    <string name="status_ready">Ready</string>
-    <string name="status_running">Running…</string>
-    <string name="status_failed">Failed</string>
 
     <!-- First-run setup of the bundled Linux environment. -->
     <string name="provision_title">Setting up Linux</string>
-    <string name="provision_body">Unpacking %1$s into this app. This happens once — everything you install with apt afterwards is kept.</string>
+    <string name="provision_body">Unpacking %1$s. This happens only once, and everything you install afterwards is kept.</string>
     <string name="provision_failed">Setup failed</string>
 
     <!-- Extra keys for the on-screen terminal keyboard. -->
-    <string name="key_ctrl">Ctrl</string>
-    <string name="key_alt">Alt</string>
-    <string name="key_esc">Esc</string>
-    <string name="key_tab">Tab</string>
-    <string name="key_ctrl_c">^C</string>
-    <string name="key_ctrl_d">^D</string>
-    <string name="key_enter">Enter</string>
+    <string name="key_ctrl" translatable="false">Ctrl</string>
+    <string name="key_alt" translatable="false">Alt</string>
+    <string name="key_esc" translatable="false">Esc</string>
+    <string name="key_tab" translatable="false">Tab</string>
+    <string name="key_ctrl_c" translatable="false">^C</string>
+    <string name="key_ctrl_d" translatable="false">^D</string>
+    <string name="key_enter" translatable="false">Enter</string>
     <string name="key_paste">Paste</string>
     <string name="key_image">Image</string>
-    <string name="key_home">Home</string>
-    <string name="key_end">End</string>
-    <string name="key_pgup">PgUp</string>
-    <string name="key_pgdn">PgDn</string>
-    <string name="key_pipe">|</string>
-    <string name="key_slash">/</string>
-    <string name="key_dash">-</string>
+    <string name="key_home" translatable="false">Home</string>
+    <string name="key_end" translatable="false">End</string>
+    <string name="key_pgup" translatable="false">PgUp</string>
+    <string name="key_pgdn" translatable="false">PgDn</string>
+    <string name="key_pipe" translatable="false">|</string>
+    <string name="key_slash" translatable="false">/</string>
+    <string name="key_dash" translatable="false">-</string>
 
     <!-- Bundled Linux environment, shown in settings. -->
     <string name="shell_title">Linux environment</string>
@@ -194,19 +253,16 @@
     <string name="shell_arch_label">Architecture</string>
     <string name="shell_size_label">Size on disk</string>
     <string name="shell_size_calculating">Calculating…</string>
-    <string name="shell_body">A full Ubuntu environment runs inside this app. The terminal, apt and the agents you launch all share one persistent system — nothing else needs to be installed.</string>
+    <string name="shell_body">Ubuntu runs inside this app. The terminal, apt and every agent you start share the same system, and everything you install stays.</string>
     <string name="shell_unsupported">The bundled Linux image does not match this device\'s CPU architecture. Sessions cannot start here.</string>
 
     <string name="sessions_header">Sessions</string>
-    <string name="session_preset_shell">Shell</string>
-    <string name="session_preset_opencode">OpenCode</string>
-    <string name="session_preset_pi">Pi</string>
-    <string name="session_preset_claude">Claude Code</string>
+    <string name="session_preset_shell" translatable="false">Shell</string>
+    <string name="session_preset_opencode" translatable="false">OpenCode</string>
+    <string name="session_preset_pi" translatable="false">Pi</string>
+    <string name="session_preset_claude" translatable="false">Claude Code</string>
     <string name="session_preset_custom">Custom</string>
     <string name="custom_command">Command</string>
-
-    <string name="unmapped_path_title">This folder has no system path</string>
-    <string name="unmapped_path_body">The terminal can only open folders backed by real storage. Remove this folder and pick one from device storage instead.</string>
 
     <string name="about_title">About</string>
     <string name="about_body">TermFold runs a real Linux environment inside the app and opens it in the folders you pick, so agents and shell tools start in the right project.</string>

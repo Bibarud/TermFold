@@ -50,10 +50,14 @@ object ShellRuntime {
         if (isReady(context)) {
             // Cheap and idempotent, so existing installs pick up defaults added after they were
             // provisioned.
-            applyGuestDefaults(ShellPaths.rootfsDir(context))
-            installProcfdShim(context, ShellPaths.rootfsDir(context), supported)
-            ShellSetup.install(context, ShellPaths.rootfsDir(context))
+            val rootfs = ShellPaths.rootfsDir(context)
+            GuestCompat.install(context, rootfs, supported)
+            ShellSetup.install(context, rootfs)
             writeHostFiles(context)
+            // Once per install: existing fake hard links become real files. Slow (it walks the
+            // whole guest) but this runs in the background refresh.
+            GuestCompat.migrateFakeLinks(rootfs)
+            GuestCompat.removeStaleMountPoints(rootfs)
             return
         }
 
@@ -69,9 +73,10 @@ object ShellRuntime {
         onProgress("Finishing", 0.96f)
         postInstall(context, rootfs)
         fixGroupDatabase(rootfs)
-        applyGuestDefaults(rootfs)
-        installProcfdShim(context, rootfs, supported)
+        GuestCompat.install(context, rootfs, supported)
         ShellSetup.install(context, rootfs)
+        // A fresh image has no fake links; this just records that.
+        GuestCompat.migrateFakeLinks(rootfs)
 
         onProgress("Ready", 1f)
         Log.i(TAG, "Linux ready at ${rootfs.absolutePath}")
@@ -276,49 +281,6 @@ object ShellRuntime {
             .mapNotNull { it.trim().toIntOrNull() }
             .toSet()
     }.getOrDefault(emptySet())
-
-    /**
-     * System-wide git defaults a picked project folder needs.
-     *
-     * Project folders live on Android shared storage, which is owned by the media UID rather than
-     * the guest's (faked) root, so git refuses every repository there with "detected dubious
-     * ownership" unless `safe.directory` allows it. Shared storage also has no symlinks, which
-     * defeats PRoot's `--link2symlink`: git's default of finalising objects with `link(2)` then
-     * breaks `git clone` with "unable to rename temporary '*.pack' file". `core.createObject =
-     * rename` is git's own switch for filesystems like that.
-     *
-     * Written to `/etc/gitconfig` so the user's `~/.gitconfig` still overrides it, and only when
-     * missing so a user's edits to the file are left alone.
-     */
-    private fun applyGuestDefaults(rootfs: File) {
-        runCatching {
-            val gitconfig = File(rootfs, "etc/gitconfig")
-            val existing = if (gitconfig.isFile) gitconfig.readText() else ""
-            if (GIT_DEFAULTS_MARKER in existing) return
-            val defaults = "$GIT_DEFAULTS_MARKER\n" +
-                "[safe]\n\tdirectory = *\n" +
-                "[core]\n\tcreateObject = rename\n"
-            val prefix = existing.trimEnd().let { if (it.isEmpty()) it else it + "\n" }
-            gitconfig.writeText(prefix + defaults)
-        }.onFailure { Log.w(TAG, "Could not write guest git defaults", it) }
-    }
-
-    private const val GIT_DEFAULTS_MARKER = "# termfold: shared-storage defaults"
-
-    /**
-     * Copies the /proc/self/fd dlopen shim ([ShellConfig.PROCFD_SHIM]) into the guest, replacing
-     * it when the bundled one differs. It must live in the rootfs rather than shared storage,
-     * which is mounted noexec and so cannot be mapped by the dynamic loader.
-     */
-    private fun installProcfdShim(context: Context, rootfs: File, abi: String) {
-        runCatching {
-            val bytes = context.assets.open(ShellConfig.procfdShimAsset(abi)).use { it.readBytes() }
-            val target = File(rootfs, ShellConfig.PROCFD_SHIM.trimStart('/'))
-            if (target.isFile && target.readBytes().contentEquals(bytes)) return
-            target.parentFile?.mkdirs()
-            target.writeBytes(bytes)
-        }.onFailure { Log.w(TAG, "Could not install the procfd shim", it) }
-    }
 
     /** Marks the placeholder group entries this app adds, so they can be replaced wholesale. */
     private const val GROUP_PREFIX = "termfold"

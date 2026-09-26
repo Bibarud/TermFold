@@ -3,7 +3,6 @@ package com.termfold.app.acp
 import android.content.Context
 import android.util.Log
 import com.termfold.app.shell.ProotCommand
-import com.termfold.app.shell.ShellConfig
 import com.termfold.app.shell.ShellPaths
 import com.termfold.app.shell.TarExtractor
 import org.json.JSONArray
@@ -12,7 +11,6 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
-import java.util.zip.ZipFile
 
 /**
  * Installs registry agents into the bundled Ubuntu environment so they can be executed by PRoot.
@@ -57,19 +55,6 @@ object AcpInstaller {
     fun installDir(context: Context, agentId: String): File =
         File(ShellPaths.rootfsDir(context), "opt/acp/$agentId")
 
-    /**
-     * Agents that dlopen their embedded libraries through /proc/self/fd, which PRoot breaks
-     * ("file too short"). Only these get the shim: preloading a glibc library into every process
-     * would break any musl-linked tool.
-     */
-    private val NEEDS_PROCFD_SHIM = setOf("antigravity-acp")
-
-    /**
-     * Environment added at every spawn. Kept out of the install manifest, so an agent installed
-     * before an entry existed here still gets it.
-     */
-    fun runtimeEnv(agent: AcpAgent): Map<String, String> =
-        if (agent.id in NEEDS_PROCFD_SHIM) mapOf("LD_PRELOAD" to ShellConfig.PROCFD_SHIM) else emptyMap()
 
     /** Extra PATH the agent process needs (Node for npx agents), or null. */
     fun pathPrefix(context: Context, agent: AcpAgent): String? =
@@ -635,7 +620,6 @@ object AcpInstaller {
     ): Pair<Int, String> {
         val command = ProotCommand.buildCommand(
             context = context,
-            workspace = null,
             shellCommand = shellCommand,
             pathPrefix = pathPrefix,
             extraEnv = extraEnv,

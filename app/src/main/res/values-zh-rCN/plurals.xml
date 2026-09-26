@@ -6,4 +6,19 @@
     <plurals name="running_working">
         <item quantity="other">%d 个正在工作</item>
     </plurals>
+    <plurals name="fm_uploaded">
+        <item quantity="other">已上传 %d 个文件</item>
+    </plurals>
+    <plurals name="fm_exported">
+        <item quantity="other">已导出 %d 个文件</item>
+    </plurals>
+    <plurals name="fm_clip_copied">
+        <item quantity="other">已复制 %d 项</item>
+    </plurals>
+    <plurals name="fm_clip_cut">
+        <item quantity="other">%d 项待移动</item>
+    </plurals>
+    <plurals name="project_sessions">
+        <item quantity="other">%d 个会话</item>
+    </plurals>
 </resources>

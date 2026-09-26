@@ -28,19 +28,11 @@ object Palette {
     val Pink = Color(0xFFFB7185)
 
     val FolderTints = listOf(Accent, Blue, Green, Yellow, Purple, Pink)
-    val StatusTints = listOf(Green, Purple, Blue, Yellow, Pink, Accent)
 
     // Terminal surface.
-    val TermBg = Color(0xFF08080A)
-    val TermPrompt = Color(0xFF4ADE80)
     val TermOut = Color(0xFFD8D8DC)
-    val TermErr = Color(0xFFFF6B6B)
-    val TermDim = Color(0xFF6E6E77)
 }
 
 /** Maps a stored tint index onto the palette, tolerating stale indices. */
 fun folderTint(index: Int): Color =
     Palette.FolderTints[index.mod(Palette.FolderTints.size)]
-
-fun statusTint(index: Int): Color =
-    Palette.StatusTints[index.mod(Palette.StatusTints.size)]

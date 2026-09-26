@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>A real Ubuntu terminal and AI coding agents on your Android tablet or phone.</b><br>
-  Claude Code, Codex, Gemini CLI, OpenCode, Cursor, Pi and more, in the folder you are working in.<br>
+  Claude Code, Codex, Gemini CLI, OpenCode, Cursor, Pi and more, in real Linux projects.<br>
   No root. No laptop. No cloud IDE.
 </p>
 
@@ -41,18 +41,25 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 
 - **A full Ubuntu 24.04 environment inside the app.** `apt install` anything. Python, Node 22,
   git, build tools, SSH and SCP work out of the box after a one-time setup.
-- **Opens in your project folder.** Pick any folder on the device; every session starts there,
-  and the files stay where your other apps can see them.
+- **Real Linux projects.** Projects live in Ubuntu's own storage (`~/projects`), so symlinks,
+  permissions, executables, git, npm and virtualenvs behave exactly as on a PC. Start one empty,
+  clone it from Git, or import a folder from the device.
 - **Every popular coding agent.** Run `claude`, `codex`, `gemini`, `opencode`, `pi` or `qwen`
   in the terminal; each installs itself the first time you type it.
 - **Or talk to them natively.** Agents that speak the [Agent Client Protocol](https://agentclientprotocol.com)
   get a real chat UI: Markdown with code blocks and tables, a live thinking ticker, tool calls with file
   names, plans, permission prompts, slash commands, and a model / reasoning / mode picker.
   Supported out of the box: Claude, Codex, OpenCode, Cursor, Devin, Pi, omp and Google Antigravity.
-- **Your files, next to your work.** A Files button in every folder, chat and shell opens the
-  project's file tree (with VS Code's file icons). Tap a file to open it in a code editor
-  (CodeMirror: syntax highlighting for 40+ languages, search, undo, Ctrl+S). Files an agent
-  changes reload on their own; long-press to delete.
+- **A file manager built in.** Browse your Linux home, your projects or the whole system;
+  search, sort, list or grid; create, rename, copy, move and delete. Code opens in a real editor
+  (CodeMirror: 40+ languages, search, undo, Ctrl+S) that reloads files an agent changes. Pictures
+  open in a zoomable viewer that can copy them to the clipboard, ready to paste into an agent.
+  On a tablet the places sit in a side pane; a Files button in every project, chat and shell
+  shows the project tree.
+- **Files in and out, any type.** Upload files or whole folders, or share to TermFold from any
+  app (a PDF for an agent, a dataset, screenshots). Export to any folder on the device, share, or
+  open with another app. TermFold also appears in Android's own file picker, so other apps can
+  open your project files directly; hidden files such as agent sign-ins are never exposed.
 - **Pick up where you left off.** Chats reopen their last session, and `/resume` (or the history
   button) lists the agent's earlier sessions in that folder to continue any of them.
 - **Keeps working while you're elsewhere.** Leave the app and TermFold floats as an Android
@@ -69,7 +76,8 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 
 1. Download the `.apk` from the [latest release](https://github.com/Bibarud/TermFold/releases/latest)
    and install it (allow installs from your browser or file manager when asked).
-2. Open TermFold, grant storage access, and tap **+** to pick a project folder.
+2. Open TermFold and tap **+** to start a project: empty, cloned from Git, or imported from the
+   device.
 3. Open **Shell**. The first time, it sets up Ubuntu for coding (updates, build tools, git,
    Python, Node 22). This downloads a few hundred MB, once.
 4. Type `claude`, `codex`, `gemini`, `opencode` or `pi`, or add an **ACP** session for the native
@@ -99,9 +107,12 @@ TermFold (Kotlin, Jetpack Compose)
               └── bash, apt, git, python, node, the agents…
 ```
 
-Your project folder is bind-mounted into Ubuntu under its own name (`/MyProject`), so a shell or
-agent starts right where your files are. Everything installed with `apt` or `npm` persists across
-restarts and app updates.
+Projects are ordinary directories in `~/projects`, and every shell or agent session starts in
+its project. Nothing depends on Android's shared storage, which cannot hold symlinks, hard links,
+permissions or executables. Android also forbids hard links in app storage, so a tiny library
+preloaded into every guest program (`/etc/ld.so.preload`, as a distribution would) turns a refused
+hard link into a real copy: dpkg, npm, git, pip and tar all work unchanged. Everything installed
+with `apt` or `npm` persists across restarts and app updates.
 
 Getting a full Linux userland to behave inside an Android app took working around a dozen
 platform restrictions (W^X on app storage, a seccomp filter that blocks `fork` and `rename`,
@@ -124,20 +135,20 @@ Tests: `./gradlew :app:testDebugUnitTest`.
 
 Other tools:
 - `tools/make-icons.py` regenerates the launcher icon from `tools/brand/logo-source.png`
-- `tools/build-procfd-shim.py` rebuilds the small `LD_PRELOAD` helper some agents need (needs `pip install ziglang`)
+- `tools/build-compat-shim.py` rebuilds the compatibility library preloaded into the guest (needs `pip install ziglang`)
 - `tools/editor/` is the code editor's source (`npm install && npm run build` writes `assets/editor/editor.js`)
 - `tools/make-file-icons.py` bundles the file tree's icons from the `material-icon-theme` npm package
-- `tools/promo-v2/` is the launch film (Remotion, real device footage) and `music.py`, its original soundtrack; `tools/promo/` is the first version
+- `tools/promo-v2/` is the launch film (Remotion, real device footage) and `music.py`, its original soundtrack
+- `tools/translations.py` writes the translated strings from one table
 
 ## Limits
 
 - **Architecture:** the Ubuntu image must match the CPU (arm64 or x86_64); there is no emulation.
-- **Folders must be real storage.** Cloud providers (Google Drive and similar) have no directory a
-  shell can `cd` into.
 - **Not a VM.** It is the Android kernel with a translated filesystem: no `systemd`, kernel
   modules or raw sockets. `apt`, compilers, language runtimes and full-screen TUIs all work.
-- **Uninstalling removes the Ubuntu environment** (it lives in app storage); your project folders
-  are untouched.
+- **Uninstalling (or clearing the app's data) deletes the Ubuntu environment and your projects**,
+  since they live in the app's storage. Push to git, or export projects to the device from Files,
+  to keep a copy.
 
 ## Contributing
 

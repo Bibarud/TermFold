@@ -35,8 +35,7 @@ data class Session(
 data class Folder(
     val id: String,
     val name: String,
-    val treeUri: String,
-    /** Real filesystem path, or empty when the provider cannot be mapped to one. */
+    /** The project directory, a host path inside the Ubuntu environment (~/projects/<dir>). */
     val path: String,
     val tint: Int,
     val sessions: List<Session> = emptyList(),

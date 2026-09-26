@@ -1,7 +1,6 @@
 package com.termfold.app.ui.screens
 
 import android.annotation.SuppressLint
-import android.graphics.BitmapFactory
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -12,7 +11,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -61,16 +59,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.termfold.app.R
+import com.termfold.app.files.FileActions
 import com.termfold.app.core.Folder
 import com.termfold.app.ui.components.BareIconButton
 import com.termfold.app.ui.theme.Mono
@@ -273,9 +269,9 @@ private fun DrawerOverlay(visible: Boolean, onDismiss: () -> Unit, panel: @Compo
 private data class TreeRow(val file: File, val depth: Int, val isDir: Boolean)
 
 /** A directory entry with its type read once, off the main thread. */
-private data class Entry(val file: File, val isDir: Boolean)
+internal data class Entry(val file: File, val isDir: Boolean)
 
-private fun listChildren(dir: File): List<Entry> =
+internal fun listChildren(dir: File): List<Entry> =
     (dir.listFiles() ?: emptyArray())
         .map { Entry(it, it.isDirectory) }
         .sortedWith(compareBy<Entry>({ !it.isDir }, { it.file.name.lowercase() }, { it.file.name }))
@@ -284,7 +280,7 @@ private fun listChildren(dir: File): List<Entry> =
  * Deletes a file, or a folder and everything in it, without following symbolic links: a link
  * inside the folder is removed as a link, never used to reach and delete what it points to.
  */
-private fun deleteTree(target: File): Boolean {
+internal fun deleteTree(target: File): Boolean {
     val root = target.toPath()
     if (!java.nio.file.Files.isDirectory(root, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
         return runCatching { java.nio.file.Files.deleteIfExists(root) }.isSuccess && !target.exists()
@@ -365,6 +361,8 @@ private fun FileTree(
     var naming by remember { mutableStateOf<Naming?>(null) }
     var moving by remember { mutableStateOf<File?>(null) }
     var opError by remember { mutableStateOf<String?>(null) }
+    // Files picked in other apps (a PDF for an agent, say) are copied into this folder.
+    var uploadInto by remember { mutableStateOf<File?>(null) }
     fun afterChange(showDir: File?) {
         if (showDir != null && root != null && showDir.path != root.path && showDir.path.startsWith(root.path)) {
             // Make sure the folder that changed is open, so the result is visible.
@@ -374,6 +372,40 @@ private fun FileTree(
         expandedVersion++
         refreshTick++
     }
+    val uploader = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris: List<android.net.Uri> ->
+        val into = uploadInto ?: return@rememberLauncherForActivityResult
+        uploadInto = null
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            withContext(Dispatchers.IO) { runCatching { FileActions.upload(context, uris, into) } }
+            afterChange(into)
+        }
+    }
+    var exporting by remember { mutableStateOf<File?>(null) }
+    val exporter = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree(),
+    ) { tree: android.net.Uri? ->
+        val file = exporting ?: return@rememberLauncherForActivityResult
+        exporting = null
+        if (tree == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val n = withContext(Dispatchers.IO) {
+                runCatching { FileActions.exportToTree(context, listOf(file), tree) }
+            }
+            android.widget.Toast.makeText(
+                context,
+                n.fold({ context.resources.getQuantityString(R.plurals.fm_exported, it, it) }, { it.message ?: "Export failed" }),
+                android.widget.Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+    fun uploadTo(dir: File) {
+        uploadInto = dir
+        uploader.launch(arrayOf("*/*"))
+    }
+
     fun runOp(op: () -> File, done: (File) -> Unit) {
         scope.launch {
             val result = withContext(Dispatchers.IO) { runCatching(op) }
@@ -408,6 +440,13 @@ private fun FileTree(
                 )
             }
             if (root != null) {
+                BareIconButton(
+                    icon = TermFoldIcons.Upload,
+                    contentDescription = stringResource(R.string.fm_upload),
+                    onClick = { uploadTo(root) },
+                    tint = Palette.TextDim,
+                    size = 36,
+                )
                 BareIconButton(
                     icon = TermFoldIcons.FilePlus,
                     contentDescription = stringResource(R.string.files_new_file),
@@ -462,6 +501,16 @@ private fun FileTree(
                         onNewFolder = { menuFor = null; opError = null; naming = Naming.NewFolder(if (row.isDir) row.file else row.file.parentFile ?: row.file) },
                         onRename = { menuFor = null; opError = null; naming = Naming.Rename(row.file) },
                         onMove = { menuFor = null; opError = null; moving = row.file },
+                        onUploadHere = { menuFor = null; uploadTo(row.file) },
+                        onExport = { menuFor = null; exporting = row.file; exporter.launch(null) },
+                        onShare = {
+                            menuFor = null
+                            runCatching { FileActions.share(context, listOf(row.file)) }
+                        },
+                        onOpenWith = {
+                            menuFor = null
+                            runCatching { FileActions.openWith(context, row.file) }
+                        },
                         onClick = {
                             if (row.isDir) {
                                 if (!expanded.remove(row.file.path)) expanded.add(row.file.path)
@@ -548,21 +597,21 @@ private fun FileTree(
 }
 
 /** What the name dialog is for. */
-private sealed interface Naming {
+internal sealed interface Naming {
     data class NewFile(val inDir: File) : Naming
     data class NewFolder(val inDir: File) : Naming
     data class Rename(val target: File) : Naming
 }
 
 /** Checks a single file or folder name typed by the user; null when it is fine. */
-private fun badName(name: String): Int? = when {
+internal fun badName(name: String): Int? = when {
     name.isBlank() -> R.string.files_name_empty
     name == "." || name == ".." || '/' in name || '\\' in name || '\u0000' in name -> R.string.files_name_invalid
     name.length > 255 -> R.string.files_name_invalid
     else -> null
 }
 
-private fun createEntry(dir: File, name: String, folder: Boolean): File {
+internal fun createEntry(dir: File, name: String, folder: Boolean): File {
     val target = File(dir, name.trim())
     check(!target.exists()) { "\"${target.name}\" already exists" }
     if (folder) check(target.mkdirs()) { "could not create the folder" }
@@ -571,7 +620,7 @@ private fun createEntry(dir: File, name: String, folder: Boolean): File {
 }
 
 /** Renames (same folder) or moves [target] into [destDir], never replacing anything. */
-private fun moveEntry(target: File, destDir: File, name: String): File {
+internal fun moveEntry(target: File, destDir: File, name: String): File {
     val dest = File(destDir, name.trim())
     if (dest.path == target.path) return target
     check(!dest.exists()) { "\"${dest.name}\" already exists there" }
@@ -583,7 +632,7 @@ private fun moveEntry(target: File, destDir: File, name: String): File {
 }
 
 @Composable
-private fun NameDialog(naming: Naming, error: String?, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun NameDialog(naming: Naming, error: String?, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
     val initial = (naming as? Naming.Rename)?.target?.name.orEmpty()
     val field = androidx.compose.foundation.text.input.rememberTextFieldState(initial)
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -717,7 +766,7 @@ private fun MoveDialog(root: File, target: File, error: String?, onPick: (File) 
 private val SKIP_IN_MOVE = setOf(".git", "node_modules", "build", ".gradle", "__pycache__", ".venv", "venv", "dist", "target")
 
 @Composable
-private fun DeleteDialog(file: File, error: String?, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+internal fun DeleteDialog(file: File, error: String?, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val isDir = file.isDirectory
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -772,6 +821,10 @@ private fun TreeRowView(
     onNewFolder: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
+    onUploadHere: () -> Unit,
+    onExport: () -> Unit,
+    onShare: () -> Unit,
+    onOpenWith: () -> Unit,
     onClick: () -> Unit,
 ) {
   Box {
@@ -783,7 +836,7 @@ private fun TreeRowView(
             .background(
                 when {
                     menuOpen -> Palette.CardPressed
-                    selected -> Palette.AccentSoft
+                    selected -> Palette.CardPressed
                     else -> Color.Transparent
                 },
             )
@@ -824,6 +877,13 @@ private fun TreeRowView(
         containerColor = Palette.Card,
         shape = RoundedCornerShape(12.dp),
     ) {
+        if (row.isDir) {
+            MenuEntry(TermFoldIcons.Upload, stringResource(R.string.files_upload_here), onUploadHere)
+        } else {
+            MenuEntry(TermFoldIcons.Share, stringResource(R.string.fm_share), onShare)
+            MenuEntry(TermFoldIcons.OpenExternal, stringResource(R.string.fm_open_with), onOpenWith)
+        }
+        MenuEntry(TermFoldIcons.FolderExport, stringResource(R.string.fm_export), onExport)
         MenuEntry(TermFoldIcons.FilePlus, stringResource(R.string.files_new_file), onNewFile)
         MenuEntry(TermFoldIcons.FolderPlus, stringResource(R.string.files_new_folder), onNewFolder)
         MenuEntry(TermFoldIcons.Pencil, stringResource(R.string.files_rename), onRename)
@@ -838,7 +898,7 @@ private fun TreeRowView(
 }
 
 @Composable
-private fun MenuEntry(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun MenuEntry(icon: ImageVector, label: String, onClick: () -> Unit) {
     androidx.compose.material3.DropdownMenuItem(
         text = { Text(label, color = Palette.Text) },
         leadingIcon = { Icon(icon, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp)) },
@@ -850,7 +910,7 @@ private fun MenuEntry(icon: ImageVector, label: String, onClick: () -> Unit) {
  * VS Code's Material Icon Theme (MIT, bundled by tools/make-file-icons.py): which SVG in
  * assets/fileicons draws a given file or folder, by exact name first, then by extension.
  */
-private object FileIcons {
+internal object FileIcons {
     private class Lookup(
         val ext: Map<String, String>,
         val names: Map<String, String>,
@@ -904,7 +964,7 @@ private object FileIcons {
 
 /** The tree's icon for a file or folder, from the same icon set as VS Code's Material theme. */
 @Composable
-private fun FileTypeIcon(name: String, isDir: Boolean, open: Boolean) {
+internal fun FileTypeIcon(name: String, isDir: Boolean, open: Boolean, size: androidx.compose.ui.unit.Dp = 17.dp) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val url = FileIcons.iconFor(name, isDir, open)
     if (url == null) {
@@ -915,7 +975,7 @@ private fun FileTypeIcon(name: String, isDir: Boolean, open: Boolean) {
         model = url,
         contentDescription = null,
         imageLoader = com.termfold.app.ui.components.AgentIconLoader.of(context),
-        modifier = Modifier.size(17.dp),
+        modifier = Modifier.size(size),
     )
 }
 
@@ -928,12 +988,10 @@ private val PathSetSaver = androidx.compose.runtime.saveable.Saver<MutableSet<St
 
 private const val MAX_EDIT_BYTES = 4L * 1024 * 1024
 private const val EDITOR_PAGE = "file:///android_asset/editor/index.html"
-private val IMAGE_EXTENSIONS = setOf("png", "jpg", "jpeg", "gif", "webp", "bmp")
 
 private sealed interface Loaded {
     data object Loading : Loaded
     data class Text(val bytes: ByteArray, val writable: Boolean, val modified: Long) : Loaded
-    data class Picture(val bitmap: ImageBitmap) : Loaded
     data class Unavailable(val reason: String) : Loaded
 }
 
@@ -951,9 +1009,26 @@ private class EditorBridge(
     @JavascriptInterface fun cursor(line: Int, column: Int) = post { onCursor(line, column) }
 }
 
+/** Opens [file] in the right viewer: pictures in [ImageViewer], everything else as text. */
+@Composable
+internal fun CodeEditor(
+    file: File,
+    root: File?,
+    onDirtyChange: (Boolean) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (FileActions.isImage(file)) {
+        LaunchedEffect(file) { onDirtyChange(false) }
+        ImageViewer(file = file, onClose = onClose, modifier = modifier)
+    } else {
+        TextEditor(file, root, onDirtyChange, onClose, modifier)
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun CodeEditor(
+private fun TextEditor(
     file: File,
     root: File?,
     onDirtyChange: (Boolean) -> Unit,
@@ -1135,9 +1210,6 @@ private fun CodeEditor(
                 Loaded.Loading -> Box(Modifier.fillMaxSize().background(Palette.Bg), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Palette.Accent)
                 }
-                is Loaded.Picture -> Box(Modifier.fillMaxSize().background(Palette.Bg).padding(16.dp), contentAlignment = Alignment.Center) {
-                    Image(state.bitmap, contentDescription = file.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-                }
                 is Loaded.Unavailable -> Box(Modifier.fillMaxSize().background(Palette.Bg).padding(24.dp), contentAlignment = Alignment.Center) {
                     Text(state.reason, style = MaterialTheme.typography.bodyMedium, color = Palette.TextDim)
                 }
@@ -1218,15 +1290,6 @@ private fun SaveButton(dirty: Boolean, saving: Boolean, onClick: () -> Unit) {
 
 private fun load(file: File, unreadable: String, tooLarge: String, binary: String): Loaded {
     if (!file.canRead()) return Loaded.Unavailable(unreadable)
-    val extension = file.extension.lowercase()
-    if (extension in IMAGE_EXTENSIONS) {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.path, bounds)
-        var sample = 1
-        while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 2048) sample *= 2
-        val bitmap = BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
-        return bitmap?.let { Loaded.Picture(it.asImageBitmap()) } ?: Loaded.Unavailable(binary)
-    }
     if (file.length() > MAX_EDIT_BYTES) return Loaded.Unavailable(tooLarge)
     val bytes = runCatching { file.readBytes() }.getOrElse { return Loaded.Unavailable(unreadable) }
     // A NUL byte early on means a binary file, which the editor would only mangle.

@@ -13,14 +13,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.termux.view.TerminalView
 import com.termfold.app.shell.ShellTheme
 import com.termfold.app.shell.TerminalHost
-import com.termfold.app.ui.theme.Palette
 
 /**
  * The live terminal surface.

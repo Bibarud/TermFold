@@ -35,58 +35,11 @@ object ShellConfig {
      */
     const val NATIVE_LOADER = "libproot-loader.so"
 
-    /** PRoot's only real dependency. */
-    const val NATIVE_TALLOC = "libtalloc.so"
-
-    /** PRoot's shared-memory shim, which the sysvipc extension uses. */
-    const val NATIVE_SHMEM = "libandroid-shmem.so"
-
-    /** In-guest location a project folder is bind-mounted at when its own name cannot be used. */
-    const val WORKSPACE = "/workspace"
-
     /** In-guest home directory for the root user. */
     const val GUEST_HOME = "/root"
 
     /** In-guest path to the shell every session starts. */
     const val GUEST_SHELL = "/bin/bash"
-
-    /**
-     * Directories a normal Ubuntu rootfs already has, which a picked folder must never shadow
-     * with its bind mount — a folder named "etc" mounted at /etc would hide the guest's own.
-     */
-    private val RESERVED_ROOTS = setOf(
-        "bin", "boot", "dev", "etc", "home", "lib", "lib32", "lib64",
-        "media", "mnt", "opt", "proc", "root", "run", "sbin", "srv",
-        "sys", "tmp", "usr", "var",
-    )
-
-    /**
-     * The guest-root directory name for a picked host folder, derived from the folder itself so
-     * the shell prompt shows the real thing the user selected — picking `Pictures` lands in
-     * `/Pictures` — instead of a generic mount point for every folder.
-     *
-     * Characters a path segment cannot carry are replaced, and names that would shadow part of
-     * the rootfs fall back to [WORKSPACE].
-     */
-    fun guestWorkspaceName(hostPath: String?): String {
-        if (hostPath.isNullOrBlank()) return WORKSPACE.trimStart('/')
-        val cleaned = java.io.File(hostPath).name
-            .replace(Regex("[^A-Za-z0-9._-]"), "-")
-            .trim('-', '.')
-        if (cleaned.isEmpty() || cleaned == "." || cleaned == ".." || cleaned in RESERVED_ROOTS) {
-            return WORKSPACE.trimStart('/')
-        }
-        return cleaned
-    }
-
-    /**
-     * Where the /proc/self/fd dlopen shim lives in the guest (see tools/procfd-shim). It is
-     * preloaded only into agents that need it, via `LD_PRELOAD`.
-     */
-    const val PROCFD_SHIM = "/opt/termfold/procfd-shim.so"
-
-    /** The shim's asset for an ABI. */
-    fun procfdShimAsset(abi: String): String = "procfd-shim-$abi.so"
 
     /** Bundled rootfs archives, one per ABI, stored with a neutral extension. */
     fun rootfsAsset(abi: String): String = "ubuntu-$abi.bin"

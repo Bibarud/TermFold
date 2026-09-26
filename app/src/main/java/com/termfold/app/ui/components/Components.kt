@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.termfold.app.ui.theme.Palette
 
 /** Shared row geometry so every list in the app lines up. */
@@ -115,22 +115,6 @@ fun LeadingTile(
     }
 }
 
-/** The `>_` mark shown on session rows. */
-@Composable
-fun SessionMark(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.size(46.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            imageVector = com.termfold.app.ui.theme.TermFoldIcons.Terminal,
-            contentDescription = null,
-            colorFilter = ColorFilter.tint(Palette.Text),
-            modifier = Modifier.size(22.dp),
-        )
-    }
-}
-
 /** Small status dot. */
 @Composable
 fun StatusDot(color: Color, size: Int = 9) {
@@ -150,8 +134,8 @@ fun CountChevron(count: Int) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.titleMedium,
+            text = androidx.compose.ui.res.pluralStringResource(com.termfold.app.R.plurals.project_sessions, count, count),
+            style = MaterialTheme.typography.bodySmall,
             color = Palette.TextDim,
         )
         Icon(
@@ -190,6 +174,29 @@ fun CircleIconButton(
             tint = tint,
             modifier = Modifier.size(if (primary) 22.dp else 21.dp),
         )
+    }
+}
+
+/** The one filled button on a screen: an accent rectangle with an icon and a short label. */
+@Composable
+fun PrimaryButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Palette.Accent)
+            .clickable(onClick = onClick)
+            .padding(start = 12.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = Palette.OnAccent, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(text = label, style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp), color = Palette.OnAccent, maxLines = 1)
     }
 }
 

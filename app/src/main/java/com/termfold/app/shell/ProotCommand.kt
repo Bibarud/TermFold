@@ -15,8 +15,8 @@ import java.io.File
  *  - which host paths to expose inside the guest, because the rootfs ships empty `/dev`, `/proc`
  *    and `/sys` directories.
  *
- * The guest keeps its own filesystem: a picked project folder is bind-mounted *into* it at
- * [ShellConfig.WORKSPACE] rather than being used as the root.
+ * Projects live inside the guest (~/projects), so a session only needs its working directory:
+ * nothing from Android's storage is bound in.
  *
  * Every executable referenced here lives in `nativeLibraryDir` and is invoked under its `lib*.so`
  * name. Nothing is copied into app storage, because nothing there may be executed.
@@ -60,15 +60,12 @@ object ProotCommand {
      * The argv handed to the PTY child.
      *
      * [argv] is the program to run *inside* the guest, so callers pass guest paths such as
-     * `/bin/bash`. [workspace] is a host path and is bind-mounted into the guest at
-     * [guestMountPath], which callers normally derive from the folder's own name.
+     * `/bin/bash`, and [guestCwd] is a guest directory (a project's, or home by default).
      */
     fun build(
         context: Context,
-        workspace: String?,
         argv: List<String>,
         guestCwd: String? = null,
-        guestMountPath: String = ShellConfig.WORKSPACE,
         pathPrefix: String? = null,
         extraEnv: Map<String, String> = emptyMap(),
     ): List<String> {
@@ -90,15 +87,6 @@ object ProotCommand {
             // Ubuntu's apt uses System V shared memory for its lockless download methods.
             "--sysvipc",
 
-            // Make `link(2)` succeed by faking hard links as symlinks.
-            //
-            // Android does not let an untrusted app create hard links inside its own data
-            // directory, so the kernel answers `link()` with EPERM. That breaks dpkg outright:
-            // installing anything fails with
-            // "error creating new backup file '/var/lib/dpkg/status-old': Permission denied".
-            // PRoot's extension is the documented fix and is what `proot-distro` enables.
-            "--link2symlink",
-
             // Kill the whole guest process tree when the session ends, so an interrupted agent
             // does not leave orphaned processes behind on a phone.
             "--kill-on-exit",
@@ -118,8 +106,12 @@ object ProotCommand {
             "-b", ShellPaths.hostsFile(context).absolutePath + ":/etc/hosts",
         )
 
-        if (workspace != null && File(workspace).isDirectory) {
-            command += listOf("-b", "$workspace:$guestMountPath")
+        // Android refuses hard links in app storage, which Ubuntu's tools need. They are now
+        // handled by the compatibility library preloaded into every guest program (GuestCompat):
+        // a refused link becomes a real copy. PRoot's own emulation (--link2symlink) is only
+        // kept until the one-time migration has turned its fragile fake links into real files.
+        if (!GuestCompat.migrated(ShellPaths.rootfsDir(context))) {
+            command.add(command.indexOf("--sysvipc") + 1, "--link2symlink")
         }
 
         command += listOf(
@@ -153,14 +145,12 @@ object ProotCommand {
     /** The argv for running a one-shot command in the guest, used for maintenance actions. */
     fun buildCommand(
         context: Context,
-        workspace: String?,
         shellCommand: String,
         guestCwd: String? = null,
         pathPrefix: String? = null,
         extraEnv: Map<String, String> = emptyMap(),
     ): List<String> = build(
         context = context,
-        workspace = workspace,
         argv = listOf(ShellConfig.GUEST_SHELL, "--login", "-c", shellCommand),
         guestCwd = guestCwd,
         pathPrefix = pathPrefix,

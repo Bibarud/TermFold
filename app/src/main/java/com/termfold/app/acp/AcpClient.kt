@@ -170,23 +170,8 @@ class AcpClient(
     private val context: Context,
     private val sessionKey: String,
     private val agent: AcpAgent,
-    private val workspacePath: String?,
     private val workspaceGuestDir: String,
 ) {
-
-    class Factory(
-        private val context: Context,
-        private val workspacePath: String?,
-        private val workspaceGuestDir: String,
-    ) {
-        fun create(sessionKey: String, agent: AcpAgent): AcpClient = AcpClient(
-            context = context.applicationContext,
-            sessionKey = sessionKey,
-            agent = agent,
-            workspacePath = workspacePath,
-            workspaceGuestDir = workspaceGuestDir,
-        )
-    }
 
     private val _state = MutableStateFlow(AcpUiState())
     val state: StateFlow<AcpUiState> = _state.asStateFlow()
@@ -278,12 +263,10 @@ class AcpClient(
         val guestArgv = listOf(launch.command) + launch.args
         val command = ProotCommand.build(
             context = context,
-            workspace = workspacePath,
             argv = guestArgv,
             guestCwd = workspaceGuestDir,
-            guestMountPath = workspaceGuestDir,
             pathPrefix = AcpInstaller.pathPrefix(context, agent),
-            extraEnv = launch.env + AcpInstaller.runtimeEnv(agent),
+            extraEnv = launch.env,
         )
 
         val process = ProcessBuilder(command).apply {
@@ -1040,7 +1023,7 @@ class AcpClient(
             val last = items.lastOrNull()
             val continues = last is AcpItem.Thought && asThought ||
                 last is AcpItem.AgentText && !asThought
-            if (continues && last != null) {
+            if (continues) {
                 items[items.size - 1] = if (last is AcpItem.Thought) {
                     last.copy(text = last.text + text)
                 } else {

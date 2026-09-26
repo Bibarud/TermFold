@@ -95,9 +95,27 @@ dpkg: error: error creating new backup file '/var/lib/dpkg/status-old': Permissi
 E: Sub-process /usr/bin/dpkg returned an error code (2)
 ```
 
-PRoot's `--link2symlink` extension is the documented fix and is what `proot-distro` enables. A
-failed dpkg run leaves the database interrupted, and the rootfs has to be re-provisioned from
-scratch rather than retried.
+PRoot's `--link2symlink` extension, which `proot-distro` enables, fakes a hard link with a hidden
+`.l2s.<name>` data file kept **in the folder of the first name**, every name becoming a symlink to
+it. That is fragile: when a program replaces that folder (npm does on every install and update),
+the data goes with it while other names still point there, and the program then fails with "not
+found" or `EPERM` (PRoot refuses to follow such a link). Claude Code's 240 MB binary, hard-linked
+by its postinstall into `bin/`, was lost exactly that way, and `claude` reinstalled on every run.
+
+What TermFold does instead: `libtermfold-compat.so` (`tools/compat-shim/`) is preloaded into every
+guest program through `/etc/ld.so.preload`, the mechanism a distribution would use. A `link()` or
+`linkat()` the kernel refuses with `EPERM`/`EACCES` becomes an independent copy (a symlink stays a
+symlink, mode and times kept, `EEXIST` and "no directories" preserved). dpkg, apt, npm's cache,
+git, pip, tar and `cp -al` cannot tell the difference; only `st_nlink` stays 1. Only glibc reads
+`ld.so.preload`, so musl and static programs are untouched. PRoot runs without `--link2symlink`;
+existing installs are migrated once (`GuestCompat.migrateFakeLinks`), each fake link becoming a
+real file, and keep the extension until that has finished.
+
+The migration must read PRoot's link targets correctly: they hold **host** paths
+(`/data/user/0/<app>/files/linux/rootfs/usr/bin/.l2s.perl0001`), not guest ones. A first version
+resolved them as guest paths, took working links for broken ones and deleted their data (perl
+among them). It now accepts both forms and never deletes a hidden file that any remaining name
+still reaches (`GuestCompatTest`, run on Linux since Windows cannot create symlinks).
 
 ## Smaller things worth knowing
 
@@ -136,10 +154,16 @@ scratch rather than retried.
 - **IPv6 resolvers must not lead `resolv.conf`.** The emulator reports `fec0::3` first and it is
   unreachable from the guest, so every lookup fails with "Temporary failure resolving". Only IPv4
   resolvers are written, public fallbacks appended, and the file is refreshed per session.
-- **Git in a picked folder needs two system defaults** (`/etc/gitconfig`): `safe.directory = *`,
-  because shared storage belongs to the media UID ("detected dubious ownership"), and
-  `core.createObject = rename`, because shared storage has no symlinks so `--link2symlink` cannot
-  fake `link(2)` there and `git clone` dies renaming its pack file.
+- **Projects live in the guest, not in Android's shared storage.** `/sdcard` is FUSE-backed media
+  storage: no symlinks, no hard links, no Unix permissions, nothing executable, and owned by the
+  media UID (git: "detected dubious ownership"). Picked folders were bind-mounted in at first and
+  every tool tripped over something. Projects are now plain directories in `~/projects`; files
+  come in through the system pickers or "Share → TermFold", go out by export to a picked folder,
+  share or "open with", and the home folder is offered to other apps through a
+  `DocumentsProvider` that never serves hidden files (agent sign-ins live in `~/.claude`,
+  `~/.codex`, `~/.ssh`). No storage permission is requested.
+- **The Android folder picker cannot pick the root of Download or of the storage**, only a folder
+  inside it (Android 11+ privacy rule). "Create new folder" in the picker is the way.
 - **The base image has no tzdata**, and glibc treats an unknown `TZ` name as UTC. A POSIX
   fixed-offset `TZ` is passed until `tzdata` is installed.
 - **Building on this Windows host**: if Gradle fails with "Unable to establish loopback

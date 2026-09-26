@@ -8,4 +8,24 @@
         <item quantity="one">%d अभी काम कर रहा है</item>
         <item quantity="other">%d अभी काम कर रहे हैं</item>
     </plurals>
+    <plurals name="fm_uploaded">
+        <item quantity="one">%d फ़ाइल अपलोड हुई</item>
+        <item quantity="other">%d फ़ाइलें अपलोड हुईं</item>
+    </plurals>
+    <plurals name="fm_exported">
+        <item quantity="one">%d फ़ाइल एक्सपोर्ट हुई</item>
+        <item quantity="other">%d फ़ाइलें एक्सपोर्ट हुईं</item>
+    </plurals>
+    <plurals name="fm_clip_copied">
+        <item quantity="one">%d आइटम कॉपी हुआ</item>
+        <item quantity="other">%d आइटम कॉपी हुए</item>
+    </plurals>
+    <plurals name="fm_clip_cut">
+        <item quantity="one">ले जाने के लिए %d आइटम</item>
+        <item quantity="other">ले जाने के लिए %d आइटम</item>
+    </plurals>
+    <plurals name="project_sessions">
+        <item quantity="one">%d सेशन</item>
+        <item quantity="other">%d सेशन</item>
+    </plurals>
 </resources>

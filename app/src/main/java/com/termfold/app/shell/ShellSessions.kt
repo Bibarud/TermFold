@@ -26,16 +26,9 @@ object ShellSessions {
         initialCommand: String,
         sessionName: String,
     ): TerminalSession {
-        val mounted = workspace != null && File(workspace).isDirectory
-
-        // Mount the picked folder under its own name so the session begins where the user's
-        // mental model is — a folder picked as "Pictures" starts at /Pictures, and the prompt
-        // says so — instead of everything appearing as a generic /workspace.
-        val guestMount = if (mounted) {
-            "/" + ShellConfig.guestWorkspaceName(workspace)
-        } else {
-            ShellConfig.WORKSPACE
-        }
+        // A session starts in its project's directory (/root/projects/app), or home.
+        val guestCwd = Projects.guestPath(context, workspace)?.takeIf { workspace != null && File(workspace).isDirectory }
+            ?: ShellConfig.GUEST_HOME
 
         // Until the one-time environment setup has completed, every session runs it first, in
         // front of the user, then carries on to its prompt or preset.
@@ -66,10 +59,8 @@ object ShellSessions {
 
         val command = ProotCommand.build(
             context = context,
-            workspace = workspace,
-            guestMountPath = guestMount,
             argv = argv,
-            guestCwd = if (mounted) guestMount else ShellConfig.GUEST_HOME,
+            guestCwd = guestCwd,
         )
 
         return TerminalSession(

@@ -6,4 +6,19 @@
     <plurals name="running_working">
         <item quantity="other">%d sedang bekerja</item>
     </plurals>
+    <plurals name="fm_uploaded">
+        <item quantity="other">%d file diunggah</item>
+    </plurals>
+    <plurals name="fm_exported">
+        <item quantity="other">%d file diekspor</item>
+    </plurals>
+    <plurals name="fm_clip_copied">
+        <item quantity="other">%d item disalin</item>
+    </plurals>
+    <plurals name="fm_clip_cut">
+        <item quantity="other">%d item untuk dipindahkan</item>
+    </plurals>
+    <plurals name="project_sessions">
+        <item quantity="other">%d sesi</item>
+    </plurals>
 </resources>
