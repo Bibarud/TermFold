@@ -308,4 +308,5 @@
     <string name="agent_browser_working">Agent is using the browser</string>
     <string name="agent_browser_paused">You have the browser. The agent is paused.</string>
     <string name="agent_browser_resume">Let agent continue</string>
+    <string name="preview_minimize">Minimize</string>
 </resources>

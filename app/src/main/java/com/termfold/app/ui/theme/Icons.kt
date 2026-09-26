@@ -630,4 +630,14 @@ object TermFoldIcons {
             )
             .build()
     }
+
+    /** A window with its content sent down to a bar: minimize to a pill. */
+    val WindowMinimize: ImageVector by lazy {
+        stroked(
+            "WindowMinimize",
+            "M5.2,4.8 H18.8 C19.6,4.8 20.2,5.4 20.2,6.2 V17.8 C20.2,18.6 19.6,19.2 18.8,19.2 H5.2 C4.4,19.2 3.8,18.6 3.8,17.8 V6.2 C3.8,5.4 4.4,4.8 5.2,4.8 Z",
+            "M8.2,15.4 H15.8",
+            "M9.8,8.6 L12,10.8 L14.2,8.6",
+        )
+    }
 }

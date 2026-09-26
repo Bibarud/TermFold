@@ -29,6 +29,8 @@ object Preview {
 
     data class State(
         val open: Boolean = false,
+        /** Open but out of the way: the page keeps running (an agent can keep using it) under a pill. */
+        val minimized: Boolean = false,
         /** The page to show; null shows the start page (running servers, the project's pages). */
         val url: String? = null,
         /** Bumped on every open, so asking for the same page again reloads it. */
@@ -55,7 +57,11 @@ object Preview {
         }
     }
 
-    fun close() = _state.update { it.copy(open = false) }
+    fun close() = _state.update { it.copy(open = false, minimized = false) }
+
+    fun minimize() = _state.update { if (it.open) it.copy(minimized = true) else it }
+
+    fun restore() = _state.update { it.copy(minimized = false) }
 
     /** Whether [file] can be shown as a page: HTML or SVG, or a folder with an index.html. */
     fun canPreview(file: File): Boolean =

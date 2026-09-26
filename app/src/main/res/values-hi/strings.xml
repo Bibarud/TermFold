@@ -277,4 +277,5 @@
     <string name="agent_browser_working">एजेंट ब्राउज़र चला रहा है</string>
     <string name="agent_browser_paused">ब्राउज़र आपके पास है। एजेंट रुका हुआ है।</string>
     <string name="agent_browser_resume">एजेंट को जारी रखने दें</string>
+    <string name="preview_minimize">छोटा करें</string>
 </resources>

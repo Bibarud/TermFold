@@ -277,4 +277,5 @@
     <string name="agent_browser_working">El agente está usando el navegador</string>
     <string name="agent_browser_paused">Tienes el navegador. El agente está en pausa.</string>
     <string name="agent_browser_resume">Dejar que el agente siga</string>
+    <string name="preview_minimize">Minimizar</string>
 </resources>

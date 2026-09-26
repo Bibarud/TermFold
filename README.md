@@ -63,7 +63,8 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 - **A browser beside your work.** Preview dev servers (`localhost:5173`), the project's own
   pages (served like a real server, reloading as files change) or any site, next to the chat on
   a tablet. Phone and desktop widths, the page's console with a copy button, and screenshots to
-  the clipboard or the project. Running dev servers show up by themselves.
+  the clipboard or the project. Running dev servers show up by themselves. Minimize it to a
+  small pill you can drag anywhere; the page keeps running, so an agent can keep using it.
 - **Agents use the browser too.** Agents open pages, read them, click, type, fill forms, scroll,
   take screenshots and read the console, with real taps and keys, while you watch an orange
   frame and their pointer move. Chat agents get it as MCP tools automatically; in a shell it is

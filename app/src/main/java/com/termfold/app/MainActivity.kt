@@ -48,6 +48,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import com.termfold.app.ui.screens.PreviewPane
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.gestures.rememberDraggableState
@@ -517,7 +521,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             ) {
                 val total = LocalConfiguration.current.screenWidthDp.dp - 84.dp
                 val density = LocalDensity.current
-                Row(Modifier.fillMaxHeight()) {
+                Row(Modifier.fillMaxHeight().parked(preview.minimized)) {
                     Box(
                         Modifier
                             .width(14.dp)
@@ -540,6 +544,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                         maximized = false,
                         onToggleMaximize = { previewMax = true },
                         onClose = { com.termfold.app.preview.Preview.close() },
+                        onMinimize = { com.termfold.app.preview.Preview.minimize() },
+                        parked = preview.minimized,
                         modifier = Modifier
                             .width(total * previewFraction)
                             .fillMaxHeight()
@@ -557,8 +563,10 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             enter = androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.fadeOut(),
         ) {
-            BackHandler { if (previewMax) previewMax = false else com.termfold.app.preview.Preview.close() }
+            BackHandler(enabled = !preview.minimized) { if (previewMax) previewMax = false else com.termfold.app.preview.Preview.close() }
             PreviewPane(
+                onMinimize = { com.termfold.app.preview.Preview.minimize() },
+                parked = preview.minimized,
                 state = preview,
                 wide = windowWidth.isWide,
                 maximized = previewMax,
@@ -568,8 +576,42 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                     com.termfold.app.preview.Preview.close()
                 },
                 // Dark behind the status and navigation bars too, not just inside them.
-                modifier = Modifier.fillMaxSize().background(Palette.Bg).windowInsetsPadding(WindowInsets.safeDrawing),
+                modifier = Modifier.fillMaxSize().parked(preview.minimized).background(Palette.Bg).windowInsetsPadding(WindowInsets.safeDrawing),
             )
+        }
+
+        // ---- The minimized browser: a pill that can be dragged anywhere.
+        androidx.compose.animation.AnimatedVisibility(
+            visible = preview.open && preview.minimized,
+            enter = androidx.compose.animation.scaleIn(initialScale = 0.8f) + androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.scaleOut(targetScale = 0.8f) + androidx.compose.animation.fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            androidx.compose.foundation.layout.BoxWithConstraints(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            ) {
+                val density = LocalDensity.current
+                val pillW = with(density) { 236.dp.toPx() }
+                val pillH = with(density) { 46.dp.toPx() }
+                val maxX = (constraints.maxWidth - pillW).coerceAtLeast(0f)
+                val maxY = (constraints.maxHeight - pillH).coerceAtLeast(0f)
+                // Starts bottom-right, clear of the bottom bar on a phone; stays where it is dropped.
+                var pillX by rememberSaveable { mutableFloatStateOf(-1f) }
+                var pillY by rememberSaveable { mutableFloatStateOf(-1f) }
+                if (pillX < 0f) pillX = maxX - with(density) { 16.dp.toPx() }
+                if (pillY < 0f) pillY = maxY - with(density) { (if (windowWidth.isWide) 20.dp else 96.dp).toPx() }
+                com.termfold.app.ui.screens.PreviewPill(
+                    Modifier
+                        .offset { androidx.compose.ui.unit.IntOffset(pillX.coerceIn(0f, maxX).toInt(), pillY.coerceIn(0f, maxY).toInt()) }
+                        .pointerInput(maxX, maxY) {
+                            detectDragGestures { change, drag ->
+                                change.consume()
+                                pillX = (pillX.coerceIn(0f, maxX) + drag.x).coerceIn(0f, maxX)
+                                pillY = (pillY.coerceIn(0f, maxY) + drag.y).coerceIn(0f, maxY)
+                            }
+                        },
+                )
+            }
         }
     }
     }
@@ -909,3 +951,18 @@ private fun LabelledField(
         )
     }
 }
+
+/**
+ * Takes the content out of view without taking it out of the app: it is measured and kept
+ * running (a minimized browser keeps its page for an agent) but occupies no space and is placed
+ * off the screen, so it draws nothing over the work and receives no touches.
+ */
+private fun Modifier.parked(parked: Boolean): Modifier = this.layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    if (!parked) {
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    } else {
+        layout(0, 0) { placeable.place(constraints.maxWidth.coerceAtMost(100_000) + 10_000, 0) }
+    }
+}
+

@@ -84,6 +84,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -157,6 +159,8 @@ fun PreviewPane(
     onToggleMaximize: (() -> Unit)?,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    onMinimize: () -> Unit = {},
+    parked: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -169,6 +173,7 @@ fun PreviewPane(
     var canBack by remember { mutableStateOf(false) }
     var canForward by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
+    var httpError by remember { mutableStateOf<String?>(null) }
     var viewportName by rememberSaveable { mutableStateOf(Viewport.FIT.name) }
     val viewport = Viewport.valueOf(viewportName)
     var liveReload by rememberSaveable { mutableStateOf(true) }
@@ -316,6 +321,7 @@ fun PreviewPane(
                 override fun navigate(url: String) = go(url)
                 override fun progress() = progress
                 override fun loadError() = loadError
+                override fun httpError() = httpError
                 override fun setViewport(mode: String): Boolean {
                     val target = Viewport.entries.firstOrNull { it.name.equals(mode, true) } ?: return false
                     viewportName = target.name
@@ -370,7 +376,7 @@ fun PreviewPane(
     }
 
     // Back steps through the page's history first when the preview has the screen to itself.
-    BackHandler(enabled = canBack && (!wide || maximized)) { webView?.goBack() }
+    BackHandler(enabled = !parked && canBack && (!wide || maximized)) { webView?.goBack() }
 
     Column(modifier.background(Palette.Bg)) {
         // ---- Toolbar
@@ -454,6 +460,7 @@ fun PreviewPane(
                     onClick = onToggleMaximize,
                 )
             }
+            ToolIcon(TermFoldIcons.WindowMinimize, stringResource(R.string.preview_minimize), onClick = onMinimize)
             ToolIcon(TermFoldIcons.Close, stringResource(R.string.action_close), onClick = onClose)
         }
         // Loading progress, a hairline under the toolbar.
@@ -527,6 +534,7 @@ fun PreviewPane(
                                 override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                                     if (url == "about:blank") return
                                     loadError = null
+                                    httpError = null
                                     console.clear()
                                 }
 
@@ -551,6 +559,7 @@ fun PreviewPane(
                                 }
 
                                 override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+                                    if (request.isForMainFrame) httpError = "HTTP ${response.statusCode}"
                                     markFailed(network, request.url.toString(), "HTTP ${response.statusCode}")
                                 }
                             }
@@ -1039,13 +1048,19 @@ fun PreviewButton(projectDir: String?) {
             delay(4000)
         }
     }
-    val open = state.open
+    val open = state.open && !state.minimized
     Box(
         modifier = Modifier
             .size(40.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (open) Palette.AccentSoft else Color.Transparent)
-            .clickable { if (open) Preview.close() else Preview.open(projectDir = projectDir) },
+            .clickable {
+                when {
+                    open -> Preview.close()
+                    state.open -> Preview.restore()
+                    else -> Preview.open(projectDir = projectDir)
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
@@ -1192,4 +1207,71 @@ private fun AgentFrame(active: Boolean, paused: Boolean, label: String) {
             )
         }
     }
+}
+
+
+/**
+ * The minimized browser: a small pill that can be dragged anywhere. While an agent works it
+ * spins and says what it is doing; otherwise it names the page. Tap to bring the browser back.
+ * Always the same width, so it never grows over the work.
+ */
+@Composable
+fun PreviewPill(modifier: Modifier = Modifier) {
+    val state by Preview.state.collectAsState()
+    val agent by BrowserBridge.activity.collectAsState()
+    val working = agent.active
+    val text = when {
+        working && agent.label.isNotBlank() -> agent.label
+        working -> stringResource(R.string.agent_browser_working)
+        else -> state.url?.let(::pillName) ?: stringResource(R.string.preview_title)
+    }
+    val border by androidx.compose.animation.animateColorAsState(if (working) Palette.Accent else Palette.Border, label = "pillBorder")
+    Row(
+        modifier
+            .width(236.dp)
+            .height(46.dp)
+            .shadow(14.dp, RoundedCornerShape(23.dp))
+            .clip(RoundedCornerShape(23.dp))
+            .background(Palette.Card)
+            .border(1.dp, border, RoundedCornerShape(23.dp))
+            .clickable { Preview.restore() }
+            .padding(start = 14.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+            if (working) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Palette.Accent)
+            } else {
+                Icon(TermFoldIcons.Globe, null, tint = Palette.TextDim, modifier = Modifier.size(17.dp))
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        androidx.compose.animation.AnimatedContent(
+            targetState = text,
+            transitionSpec = { (fadeIn(androidx.compose.animation.core.tween(180)) + slideInVertically { it / 3 }) togetherWith fadeOut(androidx.compose.animation.core.tween(120)) },
+            label = "pillText",
+            modifier = Modifier.weight(1f),
+        ) { t ->
+            Text(
+                t,
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                color = Palette.Text,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        BareIconButton(
+            icon = TermFoldIcons.Close,
+            contentDescription = stringResource(R.string.action_close),
+            onClick = { Preview.close() },
+            tint = Palette.TextFaint,
+            size = 38,
+        )
+    }
+}
+
+/** Short name for the pill: the file for a project page, host and port for anything else. */
+private fun pillName(url: String): String {
+    Preview.guestPathOf(url)?.let { return it.trimEnd('/').substringAfterLast('/').ifEmpty { "/" } }
+    return url.substringAfter("://").substringBefore('/').removePrefix("www.")
 }

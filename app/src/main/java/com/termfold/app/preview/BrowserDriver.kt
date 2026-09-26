@@ -28,6 +28,8 @@ interface DriverUi {
     fun navigate(url: String)
     fun progress(): Int
     fun loadError(): String?
+    /** The HTTP error the page itself was served with (404, 500...), if any. */
+    fun httpError(): String?
     fun setViewport(mode: String): Boolean
     fun viewportName(): String
     /** Glides the agent's pointer to a point in the WebView (view pixels), showing [label]. */
@@ -89,6 +91,7 @@ class BrowserDriver(
         ui.navigate(url)
         awaitLoad()
         ui.loadError()?.let { return err("Could not open ${Preview.display(url)}: $it. If it is a dev server, is it running?") }
+        ui.httpError()?.let { return err("${Preview.display(url)} answered $it. " + pageLine()) }
         return ok("Opened. " + pageLine())
     }
 

@@ -277,4 +277,5 @@
     <string name="agent_browser_working">Agen sedang memakai browser</string>
     <string name="agent_browser_paused">Browser di tangan Anda. Agen dijeda.</string>
     <string name="agent_browser_resume">Biarkan agen lanjut</string>
+    <string name="preview_minimize">Perkecil</string>
 </resources>
