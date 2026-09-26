@@ -48,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -340,7 +341,9 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
     }
     CompositionLocalProvider(LocalUriHandler provides uriHandler) {
     AppSurface {
-        Row(modifier = Modifier.fillMaxSize()) {
+        // Opaque and hit-testable, so a minimized browser parked underneath stays hidden and
+        // never receives a touch meant for the app.
+        Row(modifier = Modifier.fillMaxSize().background(Palette.Bg).pointerInput(Unit) {}) {
             if (windowWidth.isWide) {
                 // The rail is visible over every destination, so picking a tab must also leave
                 // whatever folder or terminal screen is open — setting the tab alone would change
@@ -365,7 +368,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             LaunchedEffect(destination, windowWidth.isWide) {
                 if (!windowWidth.isWide) filesOpen = false
             }
-            Box(modifier = Modifier.weight(1f)) {
+            // Opaque and hit-testable too: a minimized side browser is parked beneath this.
+            Box(modifier = Modifier.weight(1f).background(Palette.Bg).pointerInput(Unit) {}) {
               FilesWorkspace(
                 folder = workspaceFolder,
                 filesOpen = filesOpen,
@@ -516,12 +520,15 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             // ---- The preview beside the work (tablet), with a handle to resize it.
             androidx.compose.animation.AnimatedVisibility(
                 visible = windowWidth.isWide && preview.open && !previewMax,
-                enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start) + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.Start) + androidx.compose.animation.fadeOut(),
+                // Not clipped: minimized, the pane has no width of its own and must still be drawn
+                // (beneath the work) for its page to keep rendering.
+                enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start, clip = false) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.Start, clip = false) + androidx.compose.animation.fadeOut(),
+                modifier = Modifier.zIndex(if (preview.minimized) -1f else 0f),
             ) {
                 val total = LocalConfiguration.current.screenWidthDp.dp - 84.dp
                 val density = LocalDensity.current
-                Row(Modifier.fillMaxHeight().parked(preview.minimized)) {
+                Row(Modifier.fillMaxHeight().parked(preview.minimized, overlapStart = true)) {
                     Box(
                         Modifier
                             .width(14.dp)
@@ -562,6 +569,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             // out of place on some phones.
             enter = androidx.compose.animation.fadeIn(),
             exit = androidx.compose.animation.fadeOut(),
+            modifier = Modifier.zIndex(if (preview.minimized) -1f else 1f),
         ) {
             BackHandler(enabled = !preview.minimized) { if (previewMax) previewMax = false else com.termfold.app.preview.Preview.close() }
             PreviewPane(
@@ -599,7 +607,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                 var pillX by rememberSaveable { mutableFloatStateOf(-1f) }
                 var pillY by rememberSaveable { mutableFloatStateOf(-1f) }
                 if (pillX < 0f) pillX = maxX - with(density) { 16.dp.toPx() }
-                if (pillY < 0f) pillY = maxY - with(density) { (if (windowWidth.isWide) 20.dp else 96.dp).toPx() }
+                // Top right, just under the header so its buttons stay reachable.
+                if (pillY < 0f) pillY = with(density) { 60.dp.toPx() }.coerceAtMost(maxY)
                 com.termfold.app.ui.screens.PreviewPill(
                     Modifier
                         .offset { androidx.compose.ui.unit.IntOffset(pillX.coerceIn(0f, maxX).toInt(), pillY.coerceIn(0f, maxY).toInt()) }
@@ -953,16 +962,18 @@ private fun LabelledField(
 }
 
 /**
- * Takes the content out of view without taking it out of the app: it is measured and kept
- * running (a minimized browser keeps its page for an agent) but occupies no space and is placed
- * off the screen, so it draws nothing over the work and receives no touches.
+ * Takes the content out of view without taking it out of the app: it keeps its full size and
+ * keeps running (a minimized browser keeps drawing its page for an agent) but occupies no space.
+ * It stays on the screen, under the app (the caller lowers its z-index; the app above is
+ * opaque and hit-testable), because a WebView moved off the screen stops drawing and its
+ * screenshots come out black. [overlapStart] lays it over the space to its left, for a pane at
+ * the end of a row.
  */
-private fun Modifier.parked(parked: Boolean): Modifier = this.layout { measurable, constraints ->
+private fun Modifier.parked(parked: Boolean, overlapStart: Boolean = false): Modifier = this.layout { measurable, constraints ->
     val placeable = measurable.measure(constraints)
     if (!parked) {
         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     } else {
-        layout(0, 0) { placeable.place(constraints.maxWidth.coerceAtMost(100_000) + 10_000, 0) }
+        layout(0, 0) { placeable.place(if (overlapStart) -placeable.width else 0, 0) }
     }
 }
-

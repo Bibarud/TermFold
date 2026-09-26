@@ -336,8 +336,18 @@ class BrowserDriver(
         BrowserBridge.setLabel("Taking a screenshot")
         delay(80)
         if (web.width == 0 || web.height == 0) return err("The browser is not on screen.")
-        val bitmap = Bitmap.createBitmap(web.width, web.height, Bitmap.Config.ARGB_8888)
+        // A capture taken while the page is still drawing (right after a scroll, say) can come
+        // out as one flat colour; give it a moment and take it again.
+        var bitmap = Bitmap.createBitmap(web.width, web.height, Bitmap.Config.ARGB_8888)
         web.draw(Canvas(bitmap))
+        var tries = 0
+        while (isBlank(bitmap) && tries < 4) {
+            tries++
+            delay(250L * tries)
+            bitmap.eraseColor(0)
+            web.draw(Canvas(bitmap))
+        }
+        val blank = isBlank(bitmap)
         val result = JSONObject()
         // The WebView may only be touched on the main thread; read what is needed first.
         val shown = web.url?.let(Preview::display).orEmpty()
@@ -366,6 +376,7 @@ class BrowserDriver(
                 result.put("image", Base64.encodeToString(bytes, Base64.NO_WRAP)).put("mime", "image/jpeg")
             }
             bitmap.recycle()
+            if (blank) summary.append(". It is a single flat colour: the page may be blank or still drawing; scroll a little or wait, then take another")
             result.put("text", summary.append('.').toString())
         }
     }
@@ -548,6 +559,19 @@ class BrowserDriver(
     private fun ok(text: String) = JSONObject().put("text", text)
 
     private fun err(text: String) = JSONObject().put("error", text)
+
+    /**
+     * True when a capture is one colour all over. It is shrunk with filtering first, so even thin
+     * text anywhere on a plain page shows up as a slightly different pixel.
+     */
+    private fun isBlank(bitmap: Bitmap): Boolean {
+        val small = Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+        val pixels = IntArray(96 * 96)
+        small.getPixels(pixels, 0, 96, 0, 0, 96, 96)
+        if (small !== bitmap) small.recycle()
+        val first = pixels[0]
+        return pixels.all { it == first }
+    }
 
     /** Keeps the newest few temporary screenshots and nothing older than a day. */
     private fun pruneTemporary(dir: File) {

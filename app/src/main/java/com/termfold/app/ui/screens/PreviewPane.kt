@@ -310,10 +310,13 @@ fun PreviewPane(
         }
     }
 
+    // This pane's driver. Panes are recreated (maximize, restore, rotation) and the old one can
+    // finish going away after the new one registered; it must not unregister the new one.
+    var driver by remember { mutableStateOf<BrowserDriver?>(null) }
     LaunchedEffect(webView) {
         val view = webView ?: return@LaunchedEffect
         val density = context.resources.displayMetrics.density
-        BrowserBridge.controller = BrowserDriver(
+        driver = BrowserDriver(
             context,
             view,
             object : DriverUi {
@@ -370,9 +373,10 @@ fun PreviewPane(
                 override fun uploadTaken() = uploadTaken
             },
         )
+        BrowserBridge.controller = driver
     }
     DisposableEffect(Unit) {
-        onDispose { BrowserBridge.controller = null }
+        onDispose { if (BrowserBridge.controller === driver) BrowserBridge.controller = null }
     }
 
     // Back steps through the page's history first when the preview has the screen to itself.
