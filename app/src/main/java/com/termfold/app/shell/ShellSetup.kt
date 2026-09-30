@@ -66,6 +66,10 @@ object ShellSetup {
                 .filter { it.exists() }
                 .forEach { it.deleteRecursively() }
             installBrowserTools(context, rootfs)
+            // Debian's /etc/profile resets PATH for a login shell (Ubuntu's did not), which would
+            // drop /opt/node/bin, where Node and every agent CLI live. /etc/profile.d runs after
+            // that reset, so the directory is put back at the front from there.
+            writeIfChanged(File(rootfs, "etc/profile.d/00-termfold-path.sh"), PROFILE_PATH)
             // Replacements for groupadd/useradd, which fail without hard links (see the assets);
             // the setup script swaps them in before installing packages.
             for (tool in listOf("groupadd", "useradd")) {
@@ -117,6 +121,15 @@ object ShellSetup {
             writeIfChanged(file, updated)
         }
     }
+
+    private val PROFILE_PATH = """
+        |# TermFold: keep Node.js and the agent CLIs ahead of the system ones.
+        |case ":${'$'}PATH:" in
+        |  *:/opt/node/bin:*) ;;
+        |  *) PATH="/opt/node/bin:${'$'}PATH" ;;
+        |esac
+        |export PATH
+        |""".trimMargin().trimStart('\n')
 
     /** Guest path of the browser command; chat sessions start it as an MCP server. */
     const val BROWSER_TOOL = "/usr/local/bin/termfold-browser"
