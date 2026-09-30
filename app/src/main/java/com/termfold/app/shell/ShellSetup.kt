@@ -6,7 +6,7 @@ import com.termfold.app.acp.AcpInstaller
 import java.io.File
 
 /**
- * The one-time setup that turns the bare Ubuntu base image into a coding environment, and the
+ * The one-time setup that turns the bare Debian base image into a coding environment, and the
  * on-demand installers for the agent CLIs.
  *
  * The base image has no package lists, compiler, git or Node, so an agent CLI run straight after
@@ -66,6 +66,14 @@ object ShellSetup {
                 .filter { it.exists() }
                 .forEach { it.deleteRecursively() }
             installBrowserTools(context, rootfs)
+            // Replacements for groupadd/useradd, which fail without hard links (see the assets);
+            // the setup script swaps them in before installing packages.
+            for (tool in listOf("groupadd", "useradd")) {
+                writeExecutable(
+                    File(rootfs, "usr/local/lib/termfold/shadow-lite/$tool"),
+                    context.assets.open("termfold-$tool.sh").use { it.readBytes().decodeToString() }.replace("\r\n", "\n"),
+                )
+            }
         }.onFailure { Log.w(TAG, "Could not install the setup files", it) }
     }
 

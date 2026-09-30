@@ -18,8 +18,8 @@ android {
         // runs in the untrusted_app domain and execve is denied outright. This is exactly why
         // Termux itself pins targetSdk=28. Without it the bundled PRoot cannot start at all.
         targetSdk = 28
-        versionCode = 14
-        versionName = "2.1.1"
+        versionCode = 15
+        versionName = "2.2.0"
     }
 
     androidResources {
@@ -106,7 +106,7 @@ android {
     // Bundled executables ship as lib*.so and are extracted so the OS places them in
     // nativeLibraryDir, the one location this app's SELinux domain may execute from.
     androidResources {
-        // Executables must stay uncompressed so the loader can map them directly, and the Ubuntu
+        // Executables must stay uncompressed so the loader can map them directly, and the Debian
         // image must stay byte-identical or its gzip stream is no longer valid. `.bin` is a
         // deliberately neutral extension: AGP transparently gunzips assets ending in `.gz`, which
         // would silently change the bytes this app ships.
@@ -150,7 +150,7 @@ dependencies {
     implementation("io.coil-kt:coil-svg:2.7.0")
 
     // The tar reader that unpacks the bundled rootfs is pure Kotlin with no Android
-    // dependencies, so it is covered by a plain JVM test against the real Ubuntu image.
+    // dependencies, so it is covered by a plain JVM test against the real Debian image.
     testImplementation("junit:junit:4.13.2")
 
     // Bzip2 decompression for registry agents that ship .tar.bz2 archives (goose). Only the
@@ -167,7 +167,7 @@ tasks.withType<Test>().configureEach {
     // that reads it is pointed at the same file the app ships.
     systemProperty(
         "termfold.rootfsAsset",
-        layout.projectDirectory.file("src/main/assets/ubuntu-x86_64.bin").asFile.absolutePath,
+        layout.projectDirectory.file("src/main/assets/debian-x86_64.bin").asFile.absolutePath,
     )
     // A local set of downloaded registry archives, when present, drives the AcpArchivesTest
     // against real agent downloads: -Dtermfold.acpArchives=<dir> on the gradle command line.

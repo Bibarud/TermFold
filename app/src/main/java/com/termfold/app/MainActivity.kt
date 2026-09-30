@@ -318,6 +318,30 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             return
         }
 
+        ShellState.MIGRATE_OFFER -> {
+            AppSurface {
+                com.termfold.app.ui.screens.MigrationOfferScreen(
+                    onMigrate = { viewModel.startMigration() },
+                    onLater = { viewModel.postponeMigration() },
+                )
+            }
+            return
+        }
+
+        ShellState.MIGRATING -> {
+            AppSurface {
+                ProvisioningScreen(
+                    step = shell.step,
+                    progress = shell.fraction,
+                    error = null,
+                    onRetry = { viewModel.retryShell() },
+                    title = stringResource(R.string.migrate_working_title),
+                    body = stringResource(R.string.migrate_working_body),
+                )
+            }
+            return
+        }
+
         ShellState.READY, ShellState.UNSUPPORTED -> Unit
     }
 
@@ -420,6 +444,7 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                                     folderCount = data.folders.size,
                                     sessionCount = data.folders.sumOf { it.sessions.size },
                                     onRepairShell = { viewModel.retryShell() },
+                                    onMigrateShell = { viewModel.offerMigration() },
                                     wide = windowWidth.isWide,
                                 )
                             }

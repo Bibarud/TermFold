@@ -36,7 +36,7 @@ internal object TarExtractor {
         /**
          * For downloaded archives: every file is written, and every hard link read, only at a
          * real location inside [destination]. Without it an archive could plant a symlink to
-         * somewhere else and then write through it. The bundled Ubuntu image is trusted and
+         * somewhere else and then write through it. The bundled Debian image is trusted and
          * needs links that point anywhere, so it is extracted unconfined.
          */
         confined: Boolean = false,

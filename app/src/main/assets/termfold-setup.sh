@@ -1,5 +1,5 @@
 #!/bin/bash
-# TermFold first-run setup: turns the bare Ubuntu base image into a coding environment.
+# TermFold first-run setup: turns the bare Debian base image into a coding environment.
 #
 # The base image ships without package lists, a compiler, git, Python tooling or Node, so agent
 # CLIs installed straight after the app cannot run. This brings the system up to date and puts
@@ -33,14 +33,34 @@ fail() {
   exit 1
 }
 
-printf '\n%sSetting up Ubuntu for coding%s\n' "$orange" "$reset"
+printf '\n%sSetting up Debian for coding%s\n' "$orange" "$reset"
 printf '%sOne time only. This downloads a few hundred MB and takes several minutes; keep the app open.%s\n' "$dim" "$reset"
 
 export DEBIAN_FRONTEND=noninteractive
 APT_OPTS=(-y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
 
+# Android refuses hard links in app storage, and groupadd/useradd (which packages such as
+# openssh-client run when they are installed) lock /etc/group with one, so they fail and leave the
+# package half installed. Swap in TermFold's versions first; dpkg keeps the diversion, so package
+# updates leave it alone.
+for tool in groupadd useradd; do
+  [ -x "/usr/local/lib/termfold/shadow-lite/$tool" ] || continue
+  if [ ! -e "/usr/sbin/$tool.real" ]; then
+    dpkg-divert --local --rename --divert "/usr/sbin/$tool.real" --add "/usr/sbin/$tool" >/dev/null 2>&1 || continue
+  fi
+  ln -sf "/usr/local/lib/termfold/shadow-lite/$tool" "/usr/sbin/$tool"
+done
+
 step "Updating package lists"
-apt-get update || fail "Could not reach the Ubuntu archive. Check the connection."
+apt-get update || fail "Could not reach the Debian archive. Check the connection."
+
+# An install that was cut off (the app was closed, the battery died) leaves packages half
+# configured, and apt refuses to do anything else until they are finished.
+if dpkg --audit 2>/dev/null | grep -q .; then
+  step "Finishing an interrupted install"
+  dpkg --configure -a >/dev/null 2>&1
+  apt-get "${APT_OPTS[@]}" -f install >/dev/null 2>&1
+fi
 
 step "Upgrading installed packages"
 apt-get "${APT_OPTS[@]}" full-upgrade || fail "Upgrading packages failed."
@@ -74,8 +94,21 @@ export PATH="/opt/node/bin:$PATH"
 npm config set fund false >/dev/null 2>&1
 npm config set update-notifier false >/dev/null 2>&1
 
-# fd-find installs as `fdfind` on Ubuntu; agents and people both expect `fd`.
+# fd-find installs as `fdfind` on Debian; agents and people both expect `fd`.
 [ -e /usr/local/bin/fd ] || ln -s "$(command -v fdfind)" /usr/local/bin/fd 2>/dev/null
+
+# After a move from Ubuntu (see DistroMigration.kt) the apt packages the user had asked for are
+# listed here. They are not installed automatically: the list can include desktop apps of
+# hundreds of MB. Say what there is and how to install it.
+LIST=/var/lib/termfold/migrated-packages
+if [ -s "$LIST" ]; then
+  mkdir -p /root/.termfold
+  cp -f "$LIST" /root/.termfold/ubuntu-packages.txt
+  printf '\n%sYou had %s apt packages installed on Ubuntu.%s\n' "$orange" "$(grep -c . "$LIST")" "$reset"
+  printf '%sThe list is in ~/.termfold/ubuntu-packages.txt. To install the ones you still want:%s\n' "$dim" "$reset"
+  printf '  apt install <names>          %s(or everything: xargs -a ~/.termfold/ubuntu-packages.txt apt-get install -y)%s\n' "$dim" "$reset"
+  mv -f "$LIST" "$LIST.done"
+fi
 
 touch "$MARK"
 printf '\n%sReady.%s node %s · npm %s · python %s · git %s\n' "$green" "$reset" \

@@ -13,9 +13,9 @@ import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.BasicFileAttributes
 
 /**
- * What makes the Ubuntu guest behave like Ubuntu on a PC where Android differs.
+ * What makes the Debian guest behave like Debian on a PC where Android differs.
  *
- * Android does not let an app create hard links in its own storage, and Ubuntu's tools assume
+ * Android does not let an app create hard links in its own storage, and Debian's tools assume
  * they can (dpkg, npm, git, pip, tar). This used to be papered over with PRoot's
  * `--link2symlink`, which fakes a hard link with a hidden `.l2s` data file kept in the folder of
  * the first name. That is fragile: when a program replaces that folder (npm does on every

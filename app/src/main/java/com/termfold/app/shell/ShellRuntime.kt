@@ -6,7 +6,7 @@ import android.net.ConnectivityManager
 import android.util.Log
 import java.io.File
 /**
- * Owns the bundled Linux environment: unpacking the Ubuntu root filesystem and writing the few
+ * Owns the bundled Linux environment: unpacking the Debian root filesystem and writing the few
  * files the guest cannot work out for itself.
  *
  * Everything here happens once. After the first successful run the rootfs lives in the app's
@@ -17,23 +17,28 @@ object ShellRuntime {
 
     private const val TAG = "ShellRuntime"
 
-    /** Bumped when the bundled image changes, so a future release can tell it must re-unpack. */
-    private const val MARKER = "ubuntu-24.04.5"
+    /**
+     * Written into the rootfs once it is unpacked. Bumped when the bundled image changes, so a
+     * future release can tell it must re-unpack. Anything that does not start with
+     * [DEBIAN_MARKER_PREFIX] is an older Ubuntu image, which [DistroMigration] moves to Debian.
+     */
+    private const val MARKER = "debian-13"
+    internal const val DEBIAN_MARKER_PREFIX = "debian"
 
     /**
      * The `ca-certificates` package this app unpacks into the guest.
      *
-     * The Ubuntu base image ships the archive keyring but no CA bundle, so every https:// request
-     * from inside the guest fails with "No system certificates available" and apt cannot reach
-     * archive.ubuntu.com over TLS. Installing the package through apt is not an option, because
-     * that is the very thing that needs working TLS.
+     * The Debian base image ships the archive keyring but no CA bundle, so every https:// request
+     * from inside the guest fails with "No system certificates available". Installing the package
+     * through apt is not an option for the first run, because that is the very thing that needs
+     * working TLS.
      *
      * So the bundle is placed directly: it is a set of PEM files plus the hash-named symlinks
      * `openssl` looks up, and the keyring is left exactly as the image shipped it.
      */
     private const val CA_BUNDLE = "ca-certificates.crt"
 
-    /** Thrown when the host CPU has no matching Ubuntu image. */
+    /** Thrown when the host CPU has no matching Linux image. */
     class UnsupportedCpu(abi: String) :
         IllegalStateException("No bundled Linux image for CPU architecture \"$abi\".")
 
@@ -42,10 +47,15 @@ object ShellRuntime {
      *
      * [onProgress] is called from the calling thread with a short step name and a 0..1 fraction.
      */
+    @Synchronized
     fun provision(context: Context, onProgress: (String, Float) -> Unit = { _, _ -> }) {
         // The architecture of the running process, which is the one the rootfs must match.
         val abi = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
         val supported = ShellConfig.rootfsAbi(abi) ?: throw UnsupportedCpu(abi)
+
+        // A migration that was cut off (the app was killed half way) is finished before anything
+        // else looks at the rootfs, because until then there may be no rootfs at all.
+        DistroMigration.resumeInterrupted(context, supported, onProgress)
 
         if (isReady(context)) {
             // Cheap and idempotent, so existing installs pick up defaults added after they were
@@ -66,17 +76,12 @@ object ShellRuntime {
 
         val rootfs = ShellPaths.rootfsDir(context)
         if (!File(rootfs, "usr/bin/bash").isFile) {
-            onProgress("Unpacking Ubuntu", 0.10f)
-            extractRootfs(context, supported, rootfs)
+            onProgress("Unpacking Debian", 0.10f)
+            extractRootfs(context, supported, rootfs) { onProgress("Unpacking Debian", 0.10f + 0.85f * it) }
         }
 
         onProgress("Finishing", 0.96f)
-        postInstall(context, rootfs)
-        fixGroupDatabase(rootfs)
-        GuestCompat.install(context, rootfs, supported)
-        ShellSetup.install(context, rootfs)
-        // A fresh image has no fake links; this just records that.
-        GuestCompat.migrateFakeLinks(rootfs)
+        finishImage(context, rootfs, supported)
 
         onProgress("Ready", 1f)
         Log.i(TAG, "Linux ready at ${rootfs.absolutePath}")
@@ -85,44 +90,97 @@ object ShellRuntime {
     fun isReady(context: Context): Boolean = ShellPaths.isReady(context)
 
     /**
-     * Unpacks the Ubuntu image into the app's private storage.
+     * True for an environment made by an earlier version of the app, which unpacked Ubuntu. Such
+     * an install keeps working as it is, and [DistroMigration] can move it to Debian.
+     */
+    fun isLegacyUbuntu(context: Context): Boolean {
+        if (!isReady(context)) return false
+        val marker = runCatching { ShellPaths.rootfsMarker(context).readText().trim() }.getOrDefault("")
+        return !marker.startsWith(DEBIAN_MARKER_PREFIX)
+    }
+
+    /**
+     * Everything a freshly unpacked image needs before it can be used: the directories and CA
+     * bundle it lacks, the host's group IDs, the compatibility library and TermFold's own setup
+     * files. Shared by first-run provisioning and by the migration from Ubuntu.
+     */
+    internal fun finishImage(context: Context, rootfs: File, abi: String) {
+        postInstall(context, rootfs)
+        fixGroupDatabase(rootfs)
+        GuestCompat.install(context, rootfs, abi)
+        ShellSetup.install(context, rootfs)
+        // A fresh image has no fake links; this just records that.
+        GuestCompat.migrateFakeLinks(rootfs)
+        // Last, so an image that is cut off half way is finished again rather than trusted.
+        File(rootfs, ".termfold-rootfs").writeText(MARKER)
+    }
+
+    /**
+     * Unpacks the Debian image into the app's private storage, at [rootfs].
      *
      * The extraction is deliberately done in-process ([TarExtractor]) rather than by shelling out
      * to the bundled busybox tar. Android's seccomp policy makes the raw `fork` syscall fail with
      * `ENOSYS` for app processes — apps are expected to use `clone` — and BusyBox's tar forks.
      * A JVM implementation has no such problem, and it also means the rootfs is in place before
      * any bundled executable has to prove it runs.
+     *
+     * [onProgress] gets the fraction of the image read so far.
      */
-    private fun extractRootfs(context: Context, abi: String, rootfs: File) {
+    internal fun extractRootfs(context: Context, abi: String, rootfs: File, onProgress: (Float) -> Unit = {}) {
         // A scratch tree beside the final rootfs, so publishing it afterwards is a rename rather
         // than a copy of the whole tree.
-        val staging = File(rootfs.parentFile, "${ShellConfig.ROOTFS_DIR}-staging")
-        staging.deleteRecursively()
+        val staging = ShellPaths.stagingDir(context)
+        DistroMigration.deleteTree(staging)
         if (!staging.mkdirs()) {
             error("Cannot create ${staging.absolutePath} to unpack Linux into.")
         }
 
         try {
-            // ACCESS_STREAMING keeps the 30 MB image out of memory and streams it as it is read.
-            context.assets.open(ShellConfig.rootfsAsset(abi), AssetManager.ACCESS_STREAMING)
-                .use { archive ->
-                    TarExtractor.extract(archive, staging, onWarning = { warning -> Log.w(TAG, warning) })
-                }
+            unpackImage(context, abi, staging, onProgress)
         } catch (error: Throwable) {
-            staging.deleteRecursively()
+            DistroMigration.deleteTree(staging)
             throw error
         }
 
         if (!File(staging, "usr/bin/bash").isFile) {
-            staging.deleteRecursively()
+            DistroMigration.deleteTree(staging)
             error("Unpacked image has no /usr/bin/bash, so the archive is not a usable rootfs.")
         }
 
-        rootfs.deleteRecursively()
+        DistroMigration.deleteTree(rootfs)
         if (!staging.renameTo(rootfs)) {
             error("Could not move the unpacked rootfs into ${rootfs.absolutePath}")
         }
         Log.i(TAG, "Unpacked ${ShellConfig.rootfsAsset(abi)} into ${rootfs.absolutePath}")
+    }
+
+    /** Streams the bundled image into [destination], reporting how much of it has been read. */
+    internal fun unpackImage(context: Context, abi: String, destination: File, onProgress: (Float) -> Unit = {}) {
+        val name = ShellConfig.rootfsAsset(abi)
+        val total = runCatching { context.assets.openFd(name).use { it.length } }.getOrDefault(-1L)
+        // ACCESS_STREAMING keeps the 30 MB image out of memory and streams it as it is read.
+        context.assets.open(name, AssetManager.ACCESS_STREAMING).use { raw ->
+            val counted = object : java.io.FilterInputStream(raw) {
+                private var seen = 0L
+                private var lastStep = -1
+
+                private fun count(n: Int): Int {
+                    if (n > 0 && total > 0) {
+                        seen += n
+                        val step = (seen * 100 / total).toInt()
+                        if (step != lastStep) {
+                            lastStep = step
+                            onProgress((seen.toFloat() / total).coerceIn(0f, 1f))
+                        }
+                    }
+                    return n
+                }
+
+                override fun read(): Int = super.read().also { if (it >= 0) count(1) }
+                override fun read(b: ByteArray, off: Int, len: Int): Int = count(super.read(b, off, len))
+            }
+            TarExtractor.extract(counted, destination, onWarning = { warning -> Log.w(TAG, warning) })
+        }
     }
 
     /**
@@ -163,7 +221,7 @@ object ShellRuntime {
     /**
      * Small fixes applied after extraction.
      *
-     * Every one of these is something a normal Ubuntu install gets from its packaging or from a
+     * Every one of these is something a normal Debian install gets from its packaging or from a
      * boot, and which a base image that was never booted does not have.
      */
     private fun postInstall(context: Context, rootfs: File) {
@@ -176,32 +234,18 @@ object ShellRuntime {
             "run/lock",
         ).forEach { File(rootfs, it).mkdirs() }
 
-        // The image ships an http:// mirror and no CA bundle. That combination is deliberate here:
-        // apt over http is still integrity- and origin-checked through the archive keyring the
-        // image does carry, so it works on first boot, and the CA bundle this app adds separately
-        // is what lets pip, npm, git and the agents use https.
-        //
-        // The mirror is left exactly as shipped for that reason; switching it to https before the
-        // bundle is installed is what makes apt fail with "No system certificates available".
-        runCatching {
-            val sources = File(rootfs, "etc/apt/sources.list.d/ubuntu.sources")
-            if (sources.isFile) {
-                val text = sources.readText()
-                if (text.contains("https://archive.ubuntu.com")) {
-                    Log.w(TAG, "apt sources unexpectedly use https; leaving them alone")
-                }
-            }
-        }.onFailure { Log.w(TAG, "Could not inspect apt sources", it) }
+        // The image ships an http:// mirror (deb.debian.org) and no CA bundle. That combination
+        // is deliberate: apt over http is still integrity- and origin-checked through the archive
+        // keyring the image does carry, so it works on first boot, and the CA bundle this app adds
+        // separately is what lets pip, npm, git and the agents use https.
 
         installCaCertificates(context, rootfs)
-
-        ShellPaths.rootfsMarker(context).writeText(MARKER)
     }
 
     /**
      * Installs a CA bundle into the guest.
      *
-     * The Ubuntu base image ships the archive keyring but no certificate authorities, so every
+     * The Debian base image ships the archive keyring but no certificate authorities, so every
      * https:// request from inside the guest fails with "No system certificates available" — which
      * breaks pip, npm, git and curl, and therefore every agent this app exists to run.
      *
@@ -288,5 +332,5 @@ object ShellRuntime {
     private fun nativeDir(context: Context): String = context.applicationInfo.nativeLibraryDir
 
     /** The distribution this app bundles. */
-    const val FLAVOUR = "Ubuntu 24.04 LTS"
+    const val FLAVOUR = "Debian 13 (trixie)"
 }

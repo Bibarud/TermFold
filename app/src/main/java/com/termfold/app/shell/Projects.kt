@@ -6,7 +6,7 @@ import android.provider.DocumentsContract
 import java.io.File
 
 /**
- * Projects live inside the Ubuntu environment, in `~/projects/<name>` (`/root/projects` in the
+ * Projects live inside the Debian environment, in `~/projects/<name>` (`/root/projects` in the
  * guest), on the app's own Linux storage.
  *
  * Android's shared storage (/sdcard) is not a Linux filesystem as far as programs are concerned:

@@ -131,7 +131,7 @@ private const val HOME = "/root"
 private const val SEARCH_LIMIT = 300
 
 /**
- * A file manager for the Ubuntu environment: browse from the home folder (or anywhere in the
+ * A file manager for the Debian environment: browse from the home folder (or anywhere in the
  * system), search, create, rename, copy, cut, paste and delete, upload files from other apps,
  * and share, open with, export or save files to the device. Code opens in the built-in editor
  * and pictures in a viewer that can copy them to the clipboard.

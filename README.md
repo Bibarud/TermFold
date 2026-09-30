@@ -5,7 +5,7 @@
 <h1 align="center">TermFold</h1>
 
 <p align="center">
-  <b>A real Ubuntu terminal and AI coding agents on your Android tablet or phone.</b><br>
+  <b>A real Debian terminal and AI coding agents on your Android tablet or phone.</b><br>
   Claude Code, Codex, Gemini CLI, OpenCode, Cursor, Pi and more, in real Linux projects.<br>
   No root. No laptop. No cloud IDE.
 </p>
@@ -27,7 +27,7 @@
   <sub><a href="docs/media/termfold-promo.mp4">▶ Watch the 50-second film (with sound)</a></sub>
 </p>
 
-![The terminal: Ubuntu 24.04 with Python, Node and git, and the tablet key row](docs/screenshots/terminal.png)
+![The terminal: Debian 13 with Python, Node and git, and the tablet key row](docs/screenshots/terminal.png)
 
 | Native chat with any ACP agent | Model, reasoning and mode in one tap |
 | --- | --- |
@@ -39,9 +39,9 @@ You have a tablet with a keyboard, and you want to code on it: run `git`, `pytho
 the AI coding agents everyone uses on a laptop. On Android that usually means juggling a terminal
 app, proot scripts and broken package installs. TermFold is one app that does it all:
 
-- **A full Ubuntu 24.04 environment inside the app.** `apt install` anything. Python, Node 22,
+- **A full Debian 13 environment inside the app.** `apt install` anything. Python, Node 22,
   git, build tools, SSH and SCP work out of the box after a one-time setup.
-- **Real Linux projects.** Projects live in Ubuntu's own storage (`~/projects`), so symlinks,
+- **Real Linux projects.** Projects live in Debian's own storage (`~/projects`), so symlinks,
   permissions, executables, git, npm and virtualenvs behave exactly as on a PC. Start one empty,
   clone it from Git, or import a folder from the device.
 - **Every popular coding agent.** Run `claude`, `codex`, `gemini`, `opencode`, `pi` or `qwen`
@@ -90,14 +90,14 @@ app, proot scripts and broken package installs. TermFold is one app that does it
    and install it (allow installs from your browser or file manager when asked).
 2. Open TermFold and tap **+** to start a project: empty, cloned from Git, or imported from the
    device.
-3. Open **Shell**. The first time, it sets up Ubuntu for coding (updates, build tools, git,
+3. Open **Shell**. The first time, it sets up Debian for coding (updates, build tools, git,
    Python, Node 22). This downloads a few hundred MB, once.
 4. Type `claude`, `codex`, `gemini`, `opencode` or `pi`, or add an **ACP** session for the native
    chat. Sign in once in a Shell (for example `claude` or `codex login`), and the chat uses the
    same sign-in.
 
 Requirements: Android 8.0+ on an arm64 (almost every phone and tablet) or x86_64 device, and a
-few GB of free space for Ubuntu and the tools you install.
+few GB of free space for Debian and the tools you install.
 
 **Automatic updates:** add the repo to [Obtainium](https://github.com/ImranR98/Obtainium) (badge
 above) and it installs each new release for you.
@@ -115,7 +115,7 @@ TermFold (Kotlin, Jetpack Compose)
   ├── Terminal: Termux's terminal emulator + view, on a real PTY
   ├── ACP client: JSON-RPC over the agent's stdio, rendered as native UI
   └── PRoot (userspace chroot, from nativeLibraryDir)
-        └── Ubuntu 24.04 base image, unpacked into app storage, persistent
+        └── Debian 13 base image, unpacked into app storage, persistent
               └── bash, apt, git, python, node, the agents…
 ```
 
@@ -134,7 +134,7 @@ symptom and its fix, is written up in [docs/SHELL-NOTES.md](docs/SHELL-NOTES.md)
 ## Building
 
 ```bash
-py -3 tools/fetch-shell-runtime.py    # PRoot and the Ubuntu images, into jniLibs/ and assets/
+py -3 tools/fetch-shell-runtime.py    # PRoot and the Debian images, into jniLibs/ and assets/
 py -3 tools/fetch-ca-bundle.py        # the CA bundle, into assets/
 ./gradlew :app:assembleDebug
 ```
@@ -154,12 +154,22 @@ Other tools:
 - `tools/translations.py` writes the translated strings from one table
 - `app/src/main/assets/termfold-browser.js` is the agent side of the browser (command and MCP server); `termfold-browser-skill.md` is the guide installed for agents
 
+## Coming from Ubuntu (before 2.2)
+
+Earlier versions ran Ubuntu 24.04. Debian is lighter and faster, so from 2.2 the app ships Debian 13
+and offers to move an existing install across when it starts (or from Settings, "Switch to Debian").
+The move keeps your projects and files, agent sign-ins, shell history, Node.js and the agent CLIs
+(they are plain glibc programs), then removes Ubuntu. The system packages belong to Ubuntu, so the
+first shell after the move installs the developer tools again and lists the apt packages you had
+(`~/.termfold/ubuntu-packages.txt`) so you can reinstall the ones you still want. Python virtual environments may need recreating. "Later"
+keeps Ubuntu working for a day. A move cut off half way (the app was killed) finishes on the next start.
+
 ## Limits
 
-- **Architecture:** the Ubuntu image must match the CPU (arm64 or x86_64); there is no emulation.
+- **Architecture:** the Debian image must match the CPU (arm64 or x86_64); there is no emulation.
 - **Not a VM.** It is the Android kernel with a translated filesystem: no `systemd`, kernel
   modules or raw sockets. `apt`, compilers, language runtimes and full-screen TUIs all work.
-- **Uninstalling (or clearing the app's data) deletes the Ubuntu environment and your projects**,
+- **Uninstalling (or clearing the app's data) deletes the Debian environment and your projects**,
   since they live in the app's storage. Push to git, or export projects to the device from Files,
   to keep a copy.
 
@@ -171,5 +181,5 @@ the device model, Android version, and what the terminal or agent printed.
 ## License
 
 TermFold is licensed under the [Apache License 2.0](LICENSE). The APK also contains third-party
-components under their own licenses (PRoot, talloc, the Termux terminal libraries, the Ubuntu base
+components under their own licenses (PRoot, talloc, the Termux terminal libraries, the Debian base
 image, the Outfit and JetBrains Mono fonts); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

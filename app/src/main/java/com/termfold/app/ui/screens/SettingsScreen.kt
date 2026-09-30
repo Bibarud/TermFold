@@ -47,6 +47,7 @@ fun SettingsScreen(
     onRepairShell: () -> Unit,
     modifier: Modifier = Modifier,
     wide: Boolean = false,
+    onMigrateShell: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // The size is measured in the background; everything else is instant.
@@ -83,6 +84,7 @@ fun SettingsScreen(
                     status = status,
                     shellState = shellState,
                     onRepairShell = onRepairShell,
+                    onMigrateShell = onMigrateShell,
                 )
             }
 
@@ -378,12 +380,13 @@ private fun ThemeSwatch(theme: com.termfold.app.shell.ShellTheme.Theme, selected
     }
 }
 
-/** What the app knows about the bundled Ubuntu environment. */
+/** What the app knows about the bundled Linux environment. */
 @Composable
 private fun ShellCard(
     status: ShellStatus,
     shellState: ShellState,
     onRepairShell: () -> Unit,
+    onMigrateShell: () -> Unit,
 ) {
     val ready = shellState == ShellState.READY && status.ready
     val unsupported = shellState == ShellState.UNSUPPORTED || !status.supported
@@ -442,6 +445,19 @@ private fun ShellCard(
             Spacer(Modifier.height(16.dp))
             ActionRow(
                 items = listOf(stringResource(R.string.action_repair) to onRepairShell)
+            )
+        }
+
+        if (ready && status.legacyUbuntu) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.shell_migrate_body),
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.TextDim,
+            )
+            Spacer(Modifier.height(12.dp))
+            ActionRow(
+                items = listOf(stringResource(R.string.shell_migrate_action) to onMigrateShell)
             )
         }
     }

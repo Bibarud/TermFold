@@ -13,7 +13,7 @@ import com.termux.terminal.TerminalSessionClient
 import com.termux.view.TerminalViewClient
 
 /**
- * Bridges Termux's terminal emulator to the bundled Ubuntu environment.
+ * Bridges Termux's terminal emulator to the bundled Debian environment.
  *
  * Two interfaces have to be implemented because the library splits the work in two:
  *

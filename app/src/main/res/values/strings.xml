@@ -233,6 +233,19 @@
     <string name="cd_settings">Settings</string>
 
     <!-- First-run setup of the bundled Linux environment. -->
+    <string name="migrate_title">Switch to Debian</string>
+    <string name="migrate_body">TermFold now runs on Debian, which is lighter and faster than Ubuntu. Switching takes about a minute and happens on this device.</string>
+    <string name="migrate_keeps_title">Kept</string>
+    <string name="migrate_keeps">Your projects and files, agent sign-ins, shell history, Node.js and the agent tools you installed.</string>
+    <string name="migrate_replaces_title">Replaced</string>
+    <string name="migrate_replaces">Ubuntu\'s system packages. The developer tools are installed again from Debian the next time you open a shell (a few hundred MB, needs a connection), and the apt packages you had are listed there so you can reinstall the ones you want. Python virtual environments may need to be recreated.</string>
+    <string name="migrate_no_space">Not enough free space: %1$s needed, %2$s free.</string>
+    <string name="migrate_now">Switch now</string>
+    <string name="migrate_later">Later</string>
+    <string name="migrate_working_title">Switching to Debian</string>
+    <string name="migrate_working_body">Keep the app open. Your projects and files are moved across, then Ubuntu is removed.</string>
+    <string name="shell_migrate_body">This environment still runs Ubuntu. Debian is lighter and faster, and your files move across.</string>
+    <string name="shell_migrate_action">Switch to Debian</string>
     <string name="provision_title">Setting up Linux</string>
     <string name="provision_body">Unpacking %1$s. This happens only once, and everything you install afterwards is kept.</string>
     <string name="provision_failed">Setup failed</string>
@@ -262,7 +275,7 @@
     <string name="shell_arch_label">Architecture</string>
     <string name="shell_size_label">Size on disk</string>
     <string name="shell_size_calculating">Calculating…</string>
-    <string name="shell_body">Ubuntu runs inside this app. The terminal, apt and every agent you start share the same system, and everything you install stays.</string>
+    <string name="shell_body">Debian runs inside this app. The terminal, apt and every agent you start share the same system, and everything you install stays.</string>
     <string name="shell_unsupported">The bundled Linux image does not match this device\'s CPU architecture. Sessions cannot start here.</string>
 
     <string name="sessions_header">Sessions</string>

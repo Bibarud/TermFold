@@ -129,7 +129,7 @@ private const val LongPasteLines = 25
 private val UserBubble = Color(0xFF1A1A1F)
 
 /**
- * The native agent interface for ACP sessions: the agent runs inside the bundled Ubuntu
+ * The native agent interface for ACP sessions: the agent runs inside the bundled Debian
  * environment, and everything it says, thinks, and does renders as regular UI instead of
  * terminal output.
  */

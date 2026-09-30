@@ -13,7 +13,7 @@ import java.net.URL
 import java.security.MessageDigest
 
 /**
- * Installs registry agents into the bundled Ubuntu environment so they can be executed by PRoot.
+ * Installs registry agents into the bundled Debian environment so they can be executed by PRoot.
  *
  * Binary agents are downloaded from the registry's archive URL, verified, and unpacked under
  * `/opt/acp/<id>` in the guest. Registry `cmd` entries are paths relative to the archive root

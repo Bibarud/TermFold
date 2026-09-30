@@ -169,7 +169,7 @@ data class AcpQueuedPrompt(
 
 /**
  * Drives one ACP agent over the Agent Client Protocol: spawns the agent inside the bundled
- * Ubuntu environment, speaks JSON-RPC over its stdio, and exposes the resulting timeline as
+ * Debian environment, speaks JSON-RPC over its stdio, and exposes the resulting timeline as
  * [state] for a Compose surface.
  *
  * The client is deliberately small — initialize, session/new, session/prompt, session/cancel,

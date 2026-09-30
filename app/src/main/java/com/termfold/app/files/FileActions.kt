@@ -14,7 +14,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
- * Moving files between the Ubuntu environment and the rest of Android: uploading from other
+ * Moving files between the Debian environment and the rest of Android: uploading from other
  * apps, sharing, opening in another app, saving to the device, zipping. Files are handed out
  * through a FileProvider with a one-off read grant; nothing is exposed otherwise.
  */

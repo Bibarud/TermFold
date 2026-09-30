@@ -57,7 +57,7 @@ import java.util.Locale
 
 /**
  * "Share → TermFold" from any app: files of any type (or text and links, saved as a .txt) are
- * copied into the project or folder the user picks, inside the Ubuntu environment.
+ * copied into the project or folder the user picks, inside the Debian environment.
  */
 class ShareReceiverActivity : ComponentActivity() {
 

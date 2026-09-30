@@ -10,13 +10,13 @@ import java.io.File
  *
  * `TerminalSession` forks and `execvp`s the command it is given, so the command is PRoot itself
  * and the guest shell is PRoot's own argument. That is what makes the terminal real rather than
- * simulated: the process on the far end of the pseudoterminal is an Ubuntu bash with a
+ * simulated: the process on the far end of the pseudoterminal is an Debian bash with a
  * controlling tty, its own job control, and full-screen curses output.
  */
 object ShellSessions {
 
     /**
-     * Starts an interactive Ubuntu shell rooted at [workspace], optionally running
+     * Starts an interactive Debian shell rooted at [workspace], optionally running
      * [initialCommand] first so a preset such as `opencode` comes up in the right project.
      */
     fun start(
@@ -97,7 +97,7 @@ object ShellSessions {
             __tf_cmd='$quoted'
             __tf_bin=${'$'}{__tf_cmd%% *}
             if ! command -v "${'$'}__tf_bin" >/dev/null 2>&1; then
-              printf '\n\033[33m%s is not installed in this Ubuntu environment.\033[0m\n' "${'$'}__tf_bin"
+              printf '\n\033[33m%s is not installed in this Debian environment.\033[0m\n' "${'$'}__tf_bin"
               printf 'Install it with:  apt update && apt install -y <package>\n\n'
             else
               eval "${'$'}__tf_cmd"

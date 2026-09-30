@@ -4,7 +4,7 @@ import android.content.Context
 import java.io.File
 
 /**
- * Builds the PRoot command line that starts a process inside the bundled Ubuntu rootfs.
+ * Builds the PRoot command line that starts a process inside the bundled Debian rootfs.
  *
  * PRoot has to be told several things it cannot work out for itself:
  *
@@ -84,7 +84,7 @@ object ProotCommand {
             // PRoot's scratch space; its compiled-in default is a Termux path.
             "-w", guestCwd ?: ShellConfig.GUEST_HOME,
 
-            // Ubuntu's apt uses System V shared memory for its lockless download methods.
+            // Debian's apt uses System V shared memory for its lockless download methods.
             "--sysvipc",
 
             // Kill the whole guest process tree when the session ends, so an interrupted agent
@@ -96,7 +96,7 @@ object ProotCommand {
             "-b", "/proc",
             "-b", "/sys",
 
-            // Ubuntu's apt refuses to run without a writable /dev/shm, and Android's is owned by
+            // Debian's apt refuses to run without a writable /dev/shm, and Android's is owned by
             // the system. /dev/shm does not exist in the rootfs, so this bind also creates it.
             "-b", ShellPaths.shmDir(context).absolutePath + ":/dev/shm",
 
@@ -106,7 +106,7 @@ object ProotCommand {
             "-b", ShellPaths.hostsFile(context).absolutePath + ":/etc/hosts",
         )
 
-        // Android refuses hard links in app storage, which Ubuntu's tools need. They are now
+        // Android refuses hard links in app storage, which Debian's tools need. They are now
         // handled by the compatibility library preloaded into every guest program (GuestCompat):
         // a refused link becomes a real copy. PRoot's own emulation (--link2symlink) is only
         // kept until the one-time migration has turned its fragile fake links into real files.
@@ -175,7 +175,7 @@ object ProotCommand {
         put("TERM", "xterm-256color")
         put("COLORTERM", "truecolor")
 
-        // Ubuntu's native locale is C.UTF-8, which exists in the image. Leaving LANG unset makes
+        // Debian's native locale is C.UTF-8, which exists in the image. Leaving LANG unset makes
         // apt and Python emit warnings and mangle non-ASCII output.
         put("LANG", "C.UTF-8")
         put("LC_ALL", "C.UTF-8")
@@ -217,7 +217,7 @@ object ProotCommand {
      */
     internal fun guestTimeZone(rootfs: File?, zone: java.util.TimeZone = java.util.TimeZone.getDefault()): String {
         if (rootfs != null) {
-            // Android still reports some zones by their legacy names (Asia/Calcutta), which Ubuntu
+            // Android still reports some zones by their legacy names (Asia/Calcutta), which Debian
             // 24.04 only ships in tzdata-legacy. An equivalent current name (Asia/Kolkata) is
             // there, and a real zone name is what Node, Python and the rest actually understand;
             // the POSIX fallback below leaves Node-based tools such as Claude Code on UTC.

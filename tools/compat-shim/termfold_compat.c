@@ -1,5 +1,5 @@
 /*
- * libtermfold-compat: makes the Ubuntu guest behave like Ubuntu on a PC where Android differs.
+ * libtermfold-compat: makes the Debian guest behave like Debian on a PC where Android differs.
  *
  * Preloaded into every guest program through /etc/ld.so.preload, exactly as a distribution
  * would ship a system-wide preload. Two things are fixed here:

@@ -49,7 +49,7 @@ private enum class ProjectKind { EMPTY, CLONE, IMPORT }
 
 /**
  * Starting a project: an empty folder, a git clone, or a copy of a folder from the device.
- * Every project lives inside the Ubuntu environment (~/projects).
+ * Every project lives inside the Debian environment (~/projects).
  */
 @Composable
 fun NewProjectDialog(

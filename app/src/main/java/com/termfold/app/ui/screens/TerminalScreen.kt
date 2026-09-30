@@ -54,7 +54,7 @@ import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldIcons
 
 /**
- * The terminal screen: a real Ubuntu shell rendered in-app.
+ * The terminal screen: a real Debian shell rendered in-app.
  *
  * The shell is a full PTY running inside the bundled Linux environment, so full-screen TUIs such
  * as OpenCode and Pi work here directly. Nothing is handed off to another app.

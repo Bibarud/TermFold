@@ -16,6 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,7 +38,8 @@ import com.termfold.app.ui.theme.Mono
 import com.termfold.app.ui.theme.Palette
 
 /**
- * Shown while the bundled Ubuntu environment is being unpacked for the first time.
+ * Shown while the bundled Debian environment is being unpacked for the first time (and while an
+ * older Ubuntu install is being moved to it).
  *
  * This is a one-time cost of a few seconds, so the screen reports the current step rather than a
  * fake percentage, and it explains that the environment is a one-off install.
@@ -46,6 +51,8 @@ fun ProvisioningScreen(
     error: String?,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = stringResource(R.string.provision_title),
+    body: String = stringResource(R.string.provision_body, ShellRuntime.FLAVOUR),
 ) {
     val animated by animateFloatAsState(targetValue = progress, label = "provision")
 
@@ -57,7 +64,7 @@ fun ProvisioningScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = stringResource(R.string.provision_title),
+            text = title,
             style = MaterialTheme.typography.titleLarge,
             color = Palette.Text,
         )
@@ -65,7 +72,7 @@ fun ProvisioningScreen(
         Spacer(Modifier.height(10.dp))
 
         Text(
-            text = stringResource(R.string.provision_body, ShellRuntime.FLAVOUR),
+            text = body,
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.TextDim,
         )
@@ -140,6 +147,121 @@ fun ProvisioningScreen(
     }
 }
 
+
+/**
+ * The offer to move an Ubuntu install to Debian. Says what is kept and what is replaced, and
+ * refuses to start when there is not enough free space to do it safely.
+ */
+@Composable
+fun MigrationOfferScreen(
+    onMigrate: () -> Unit,
+    onLater: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val free = remember { com.termfold.app.shell.DistroMigration.freeBytes(context) }
+    val enough = free >= com.termfold.app.shell.DistroMigration.REQUIRED_BYTES
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp, vertical = 28.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = stringResource(R.string.migrate_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = Palette.Text,
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = stringResource(R.string.migrate_body),
+            style = MaterialTheme.typography.bodyMedium,
+            color = Palette.TextDim,
+        )
+
+        Spacer(Modifier.height(22.dp))
+
+        Column(
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Palette.Card)
+                .padding(18.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.migrate_keeps_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = Palette.Text,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.migrate_keeps),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Palette.TextDim,
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(R.string.migrate_replaces_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = Palette.Text,
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.migrate_replaces),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Palette.TextDim,
+            )
+        }
+
+        if (!enough) {
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = stringResource(
+                    R.string.migrate_no_space,
+                    formatBytes(com.termfold.app.shell.DistroMigration.REQUIRED_BYTES),
+                    formatBytes(free),
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = Palette.Pink,
+            )
+        }
+
+        Spacer(Modifier.height(22.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(onClick = onLater)
+                    .padding(horizontal = 18.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.migrate_later),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Palette.TextDim,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (enough) Palette.Accent else Palette.Field)
+                    .clickable(enabled = enough, onClick = onMigrate)
+                    .padding(horizontal = 22.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.migrate_now),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (enough) Palette.OnAccent else Palette.TextFaint,
+                )
+            }
+        }
+    }
+}
+
 /** Where the environment lives and how big it is, for the settings screen. */
 data class ShellStatus(
     val ready: Boolean,
@@ -147,6 +269,8 @@ data class ShellStatus(
     val architecture: String,
     val sizeText: String,
     val supported: Boolean,
+    /** An install made with Ubuntu, which can still be moved to Debian. */
+    val legacyUbuntu: Boolean = false,
 )
 
 /**
@@ -163,6 +287,7 @@ fun shellStatus(context: Context, sizeText: String = ""): ShellStatus {
         architecture = abi,
         sizeText = sizeText,
         supported = supported,
+        legacyUbuntu = runCatching { ShellRuntime.isLegacyUbuntu(context) }.getOrDefault(false),
     )
 }
 
@@ -170,7 +295,7 @@ fun shellStatus(context: Context, sizeText: String = ""): ShellStatus {
  * The environment's size on disk. Call it off the main thread: once apt, Node and agents are
  * installed it is tens of thousands of files.
  *
- * Symlinks are never followed. Ubuntu has directory links that point back up the tree
+ * Symlinks are never followed. Debian has directory links that point back up the tree
  * (`/usr/bin/X11 -> .`), and following them made the old walk loop until the app was killed,
  * which is what closed the app on opening Settings.
  */
@@ -200,7 +325,7 @@ fun shellSizeText(context: Context): String {
     return formatBytes(bytes)
 }
 
-private fun formatBytes(bytes: Long): String = when {
+internal fun formatBytes(bytes: Long): String = when {
     bytes >= 1L shl 30 -> String.format("%.1f GB", bytes / (1L shl 30).toDouble())
     bytes >= 1L shl 20 -> String.format("%.0f MB", bytes / (1L shl 20).toDouble())
     else -> String.format("%.0f KB", bytes / 1024.0)

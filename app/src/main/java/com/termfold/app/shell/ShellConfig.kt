@@ -16,8 +16,14 @@ object ShellConfig {
     /** Root of everything the bundled environment owns, inside the app's private storage. */
     const val ROOT_DIR = "linux"
 
-    /** The Ubuntu 24.04 LTS root filesystem, extracted here and never written anywhere else. */
+    /** The Debian 13 root filesystem, extracted here and never written anywhere else. */
     const val ROOTFS_DIR = "rootfs"
+
+    /** Where a new rootfs is unpacked before it replaces the current one. */
+    const val ROOTFS_STAGING_DIR = "rootfs-staging"
+
+    /** The previous Ubuntu rootfs while it is being migrated away, and until it is deleted. */
+    const val ROOTFS_OLD_DIR = "rootfs-ubuntu-old"
 
     /** Writable scratch for PRoot and for package-manager temporaries. */
     const val TEMP_DIR = "tmp"
@@ -42,7 +48,7 @@ object ShellConfig {
     const val GUEST_SHELL = "/bin/bash"
 
     /** Bundled rootfs archives, one per ABI, stored with a neutral extension. */
-    fun rootfsAsset(abi: String): String = "ubuntu-$abi.bin"
+    fun rootfsAsset(abi: String): String = "debian-$abi.bin"
 
     /**
      * A rootfs must match the host CPU: PRoot only runs foreign binaries when a QEMU user-mode

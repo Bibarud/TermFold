@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.termfold.app.data.FolderStore
+import com.termfold.app.shell.DistroMigration
 import com.termfold.app.shell.Projects
 import com.termfold.app.shell.ShellRuntime
 import kotlinx.coroutines.Dispatchers
@@ -28,8 +29,11 @@ data class ProjectJob(
     val folderId: String? = null,
 )
 
-/** Whether the bundled Linux environment has been unpacked yet. */
-enum class ShellState { UNKNOWN, PREPARING, READY, FAILED, UNSUPPORTED }
+/**
+ * Whether the bundled Linux environment has been unpacked yet. [MIGRATE_OFFER] and [MIGRATING]
+ * are for an install made with Ubuntu, which is offered the move to Debian ([DistroMigration]).
+ */
+enum class ShellState { UNKNOWN, PREPARING, READY, FAILED, UNSUPPORTED, MIGRATE_OFFER, MIGRATING }
 
 /** Progress of the one-time setup, so the UI can narrate it. */
 data class ShellProgress(
@@ -40,6 +44,11 @@ data class ShellProgress(
 )
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
+
+    private companion object {
+        /** How long "Later" holds the offer back. */
+        const val SNOOZE_MS = 24L * 60 * 60 * 1000
+    }
 
     private val store = FolderStore(application)
 
@@ -56,12 +65,71 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (_job.value?.done == true || _job.value?.error != null) _job.value = null
     }
 
+    /** Set when the last attempt to move to Debian failed, so Retry tries that again. */
+    private var migrationFailed = false
+
+    private val migrationPrefs =
+        application.getSharedPreferences("distro_migration", android.content.Context.MODE_PRIVATE)
+
     init {
         // Provisioning is started from the UI rather than here, so a failure surfaces on screen
         // instead of being swallowed during ViewModel construction.
         _shell.value = ShellProgress(
-            state = if (ShellRuntime.isReady(application)) ShellState.READY else ShellState.UNKNOWN
+            state = when {
+                !ShellRuntime.isReady(application) -> ShellState.UNKNOWN
+                // An Ubuntu install is offered the move to Debian, unless the user said "later"
+                // recently. Until then it keeps working exactly as before.
+                ShellRuntime.isLegacyUbuntu(application) && !migrationSnoozed() -> ShellState.MIGRATE_OFFER
+                else -> ShellState.READY
+            }
         )
+    }
+
+    private fun migrationSnoozed(): Boolean =
+        System.currentTimeMillis() - migrationPrefs.getLong("snoozed_at", 0L) < SNOOZE_MS
+
+    /** Shows the offer to move to Debian; used by the button in Settings. */
+    fun offerMigration() {
+        if (_shell.value.state == ShellState.READY && ShellRuntime.isLegacyUbuntu(getApplication())) {
+            _shell.value = ShellProgress(state = ShellState.MIGRATE_OFFER)
+        }
+    }
+
+    /** "Later": carry on with Ubuntu for now, and ask again tomorrow. */
+    fun postponeMigration() {
+        migrationPrefs.edit().putLong("snoozed_at", System.currentTimeMillis()).apply()
+        _shell.value = ShellProgress(state = ShellState.READY)
+        // The refresh an existing environment gets on launch was held back by the offer.
+        refreshed = false
+        ensureShellReady()
+    }
+
+    /** Moves the environment from Ubuntu to Debian, keeping the user's files. */
+    fun startMigration() {
+        if (_shell.value.state == ShellState.MIGRATING) return
+        migrationFailed = false
+        _shell.value = ShellProgress(state = ShellState.MIGRATING, step = "", fraction = 0f)
+        viewModelScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    DistroMigration.migrate(getApplication()) { step, fraction ->
+                        _shell.update { it.copy(step = step, fraction = fraction) }
+                    }
+                }
+            }
+            _shell.value = result.fold(
+                onSuccess = {
+                    refreshed = true
+                    ShellProgress(state = ShellState.READY, step = "", fraction = 1f)
+                },
+                onFailure = { error ->
+                    Log.e("AppViewModel", "Migration to Debian failed", error)
+                    migrationFailed = true
+                    ShellProgress(state = ShellState.FAILED, error = error.message ?: error.javaClass.simpleName)
+                },
+            )
+            syncProjects()
+        }
     }
 
     /**
@@ -75,6 +143,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun ensureShellReady() {
         val current = _shell.value
+        if (current.state == ShellState.MIGRATE_OFFER || current.state == ShellState.MIGRATING) return
         if (current.state == ShellState.READY) {
             // Already unpacked: still run provision's cheap path once per process. It is what
             // brings an existing install up to date after an app update (setup script, git
@@ -116,13 +185,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Clears a previous failure and tries the setup again. */
     fun retryShell() {
+        if (migrationFailed) {
+            startMigration()
+            return
+        }
         _shell.value = ShellProgress(state = ShellState.UNKNOWN)
         ensureShellReady()
     }
 
     /**
      * Makes the project list match `~/projects`: a folder created there from a shell appears,
-     * one deleted there disappears, and entries for folders outside the Ubuntu environment
+     * one deleted there disappears, and entries for folders outside the Linux environment
      * (the old Android-storage folders) are dropped. The files of those stay on the device.
      */
     fun syncProjects() {

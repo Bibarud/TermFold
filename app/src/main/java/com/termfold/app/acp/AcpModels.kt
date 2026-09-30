@@ -3,7 +3,7 @@ package com.termfold.app.acp
 /**
  * One entry of the ACP registry: a coding agent that can be driven over the Agent Client
  * Protocol. The registry (cdn.agentclientprotocol.com) is the same index Zed and JetBrains
- * consume, so anything listed here is installable and runnable inside the bundled Ubuntu
+ * consume, so anything listed here is installable and runnable inside the bundled Debian
  * environment.
  */
 data class AcpAgent(

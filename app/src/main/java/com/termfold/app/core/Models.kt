@@ -7,7 +7,7 @@ import com.termfold.app.R
  * A session preset.
  *
  * Every preset is interactive, because every preset now runs inside the app's own terminal: the
- * shell, and the agents, are just commands started in the bundled Ubuntu environment.
+ * shell, and the agents, are just commands started in the bundled Debian environment.
  */
 enum class SessionPreset(
     @param:StringRes val labelRes: Int,
@@ -35,7 +35,7 @@ data class Session(
 data class Folder(
     val id: String,
     val name: String,
-    /** The project directory, a host path inside the Ubuntu environment (~/projects/<dir>). */
+    /** The project directory, a host path inside the Debian environment (~/projects/<dir>). */
     val path: String,
     val tint: Int,
     val sessions: List<Session> = emptyList(),

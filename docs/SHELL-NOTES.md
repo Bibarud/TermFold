@@ -1,6 +1,6 @@
 # Bundled Linux environment: findings
 
-Reference notes from building the in-app Ubuntu environment. Kept in-tree so the next session does
+Reference notes from building the in-app Linux environment (Ubuntu up to v2.1, Debian from v2.2). Kept in-tree so the next session does
 not have to rediscover any of it.
 
 ## The shape that works
@@ -203,3 +203,21 @@ it. Chat sessions get the MCP server in `session/new`; shell agents get a skill
   page under test.
 - A click moves keyboard focus into the page, as a person's tap would.
 
+
+## Debian 13 (v2.2) and the move from Ubuntu
+
+- The bundled rootfs is the official `trixie-slim` tarball from debuerreotype/docker-debian-artifacts
+  (`<commit>/trixie/slim/oci/blobs/rootfs.tar.gz`, already gzip), pinned by commit and SHA-256 in
+  `tools/fetch-shell-runtime.py`. `TarExtractor` reads it unchanged; it has one hard link (perl), which
+  is copied.
+- Debian packages run `groupadd` from their postinst (openssh-client creates `_ssh`). shadow locks
+  `/etc/group` with a hard link and insists on `nlink == 2`, which Android cannot give. The setup script
+  therefore `dpkg-divert`s `groupadd`/`useradd` to hard-link-free scripts
+  (`termfold-groupadd.sh`, `termfold-useradd.sh`, installed under `/usr/local/lib/termfold/shadow-lite`).
+- `DistroMigration` (see its header comment) moves `/root`, `/opt`, `/home`, `/srv` and
+  `/usr/local/bin` from the old tree into a staged Debian tree by `rename`, swaps the trees, records
+  the apt packages from `history.log` for the setup script, and deletes Ubuntu. State is recoverable
+  from which of `rootfs`, `rootfs-staging` and `rootfs-ubuntu-old` exist (`resumeInterrupted`).
+- Tested on an x86_64 emulator: seeded Ubuntu install -> offer screen -> switch -> data kept,
+  `.cache` dropped, Ubuntu removed, `termfold-setup` completes, npm / venv+pip / gcc / git https work;
+  also a simulated kill between "Ubuntu moved aside" and "Debian took over".

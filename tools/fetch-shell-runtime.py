@@ -1,4 +1,4 @@
-"""Stages PRoot + its loaders into jniLibs, and the Ubuntu rootfs into assets.
+"""Stages PRoot + its loaders into jniLibs, and the Debian rootfs into assets.
 
 Run from the repo root:  py -3 tools/fetch-shell-runtime.py
 
@@ -44,15 +44,22 @@ PROOT_PKGS = {
     },
 }
 
-UBUNTU = {
-    "arm64-v8a": "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/"
-                 "ubuntu-base-24.04.5-base-arm64.tar.gz",
-    "x86_64": "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/"
-              "ubuntu-base-24.04.5-base-amd64.tar.gz",
+# The official Debian 13 "trixie-slim" rootfs, taken from the debuerreotype artifacts repository
+# (the same tarball the Docker image is built from). Pinned to a commit and a SHA-256 so the
+# bytes that ship are exactly these.
+DEBIAN_ARTIFACTS = "https://raw.githubusercontent.com/debuerreotype/docker-debian-artifacts"
+DEBIAN = {
+    "arm64-v8a": (
+        "ca011a8b1c3b259e4cbbf83bf6841f1fd5f497c1",
+        "bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b",
+    ),
+    "x86_64": (
+        "8f962b15d7884a90e17876a9303cbac909d119aa",
+        "6b37362b3da78869050b894b799ad4df04f1f3b52774087db0d81151570244c8",
+    ),
 }
 
-# The rootfs is a single 30 MB archive shared by both ABIs *only* if we also
-# ship per-ABI images, so each ABI gets its own asset named after the ABI.
+# Each ABI gets its own asset named after the ABI.
 def download(url, dest):
     if os.path.isfile(dest) and os.path.getsize(dest) > 0:
         print(f"  cached {os.path.basename(dest)}")
@@ -186,15 +193,28 @@ def stage_native():
             os.chmod(os.path.join(dest, name), 0o755)
 
 
+def sha256_of(path):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def stage_rootfs():
     os.makedirs(ASSETS, exist_ok=True)
-    for abi, url in UBUNTU.items():
+    for abi, (commit, digest) in DEBIAN.items():
         print(f"[{abi}] rootfs")
         cache = os.path.join(WORK, "rootfs")
+        url = f"{DEBIAN_ARTIFACTS}/{commit}/trixie/slim/oci/blobs/rootfs.tar.gz"
         # A neutral extension: AGP transparently gunzips assets that end in .gz,
         # which would silently change the bytes we ship.
-        archive = download(url, os.path.join(cache, f"ubuntu-{abi}.tar.gz"))
-        out = os.path.join(ASSETS, f"ubuntu-{abi}.bin")
+        archive = download(url, os.path.join(cache, f"debian-{abi}.tar.gz"))
+        if sha256_of(archive) != digest:
+            os.remove(archive)
+            raise SystemExit(f"checksum mismatch for {url}")
+        out = os.path.join(ASSETS, f"debian-{abi}.bin")
         shutil.copyfile(archive, out)
         print(f"  -> assets/{os.path.basename(out)} "
               f"({os.path.getsize(out) / 1e6:.1f} MB)")
