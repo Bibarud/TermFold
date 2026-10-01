@@ -171,6 +171,8 @@ first shell after the move installs the developer tools again and lists the apt 
 (`~/.termfold/ubuntu-packages.txt`) so you can reinstall the ones you still want. Python virtual environments may need recreating. "Later"
 keeps Ubuntu working for a day. A move cut off half way (the app was killed) finishes on the next start.
 
+Curious how it works? [How TermFold runs Debian and AI coding agents on Android without root](https://bibarud.github.io/TermFold/how-it-works/) explains the five Android restrictions in the way and the fix for each.
+
 ## Limits
 
 - **Architecture:** the Debian image must match the CPU (arm64 or x86_64); there is no emulation.

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How TermFold runs Debian and AI coding agents on Android without root</title>
+<meta name="description" content="Five Android restrictions that stop a Linux system from running inside an app (W^X, targetSdk, seccomp fork, hard links, hidden /proc) and the fix for each. Notes from building TermFold.">
+<link rel="canonical" href="https://bibarud.github.io/TermFold/how-it-works/">
+<link rel="icon" href="../media/logo.png">
+<meta name="theme-color" content="#08080a">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How TermFold runs Debian and AI coding agents on Android without root">
+<meta property="og:description" content="Five Android restrictions that stop Linux from running inside an app, and what we did about each.">
+<meta property="og:url" content="https://bibarud.github.io/TermFold/how-it-works/">
+<meta property="og:image" content="https://bibarud.github.io/TermFold/media/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#08080a; --card:#131316; --border:#25252b; --text:#f4f4f5; --dim:#a1a1aa; --faint:#6b6b75; --accent:#ff7a2e; --accent-2:#ffb27a; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Outfit",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; line-height:1.7; -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent-2); }
+  code, pre { font-family:"JetBrains Mono",ui-monospace,Menlo,monospace; }
+  code { background:#17171b; border:1px solid var(--border); border-radius:6px; padding:1px 6px; font-size:.88em; }
+  pre { background:#060608; border:1px solid var(--border); border-radius:14px; padding:18px 20px; overflow-x:auto; font-size:14px; line-height:1.65; color:#d8d8de; }
+  pre code { background:none; border:0; padding:0; font-size:inherit; }
+  header.top { border-bottom:1px solid rgba(255,255,255,.05); }
+  .bar { width:min(760px,100% - 40px); margin:0 auto; height:64px; display:flex; align-items:center; justify-content:space-between; }
+  .brand { display:flex; align-items:center; gap:12px; font-weight:600; font-size:19px; text-decoration:none; color:var(--text); }
+  .brand img { width:32px; height:32px; }
+  .bar a.dl { background:var(--accent); color:#1b0d03; text-decoration:none; font-weight:600; padding:9px 18px; border-radius:12px; font-size:15px; }
+  article { width:min(760px,100% - 40px); margin:0 auto; padding:56px 0 40px; }
+  .kicker { color:var(--accent); font-weight:600; font-size:14px; letter-spacing:.1em; text-transform:uppercase; margin:0 0 12px; }
+  h1 { font-size:clamp(32px,5vw,48px); line-height:1.1; letter-spacing:-.02em; margin:0 0 18px; }
+  .lead { font-size:20px; color:var(--dim); margin:0 0 36px; }
+  h2 { font-size:28px; line-height:1.2; margin:56px 0 12px; letter-spacing:-.01em; }
+  h2 span { color:var(--accent); margin-right:10px; }
+  p { color:#c9c9d1; margin:0 0 18px; }
+  .note { border-left:3px solid var(--accent); background:var(--card); padding:14px 18px; border-radius:0 12px 12px 0; margin:24px 0; color:var(--dim); }
+  .cta { margin:64px 0 0; padding:34px; border:1px solid var(--border); border-radius:22px; background:var(--card); text-align:center; }
+  .cta h3 { margin:0 0 8px; font-size:24px; }
+  .cta p { margin:0 0 20px; }
+  .cta a.b { display:inline-block; background:var(--accent); color:#1b0d03; font-weight:600; text-decoration:none; padding:12px 24px; border-radius:14px; margin:4px; }
+  .cta a.g { display:inline-block; border:1px solid var(--border); color:var(--text); text-decoration:none; padding:12px 24px; border-radius:14px; margin:4px; }
+  footer { width:min(760px,100% - 40px); margin:0 auto; padding:30px 0 56px; color:var(--faint); font-size:14px; }
+  footer a { color:var(--dim); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="bar">
+    <a class="brand" href="../"><img src="../media/logo.png" alt="" width="32" height="32"> TermFold</a>
+    <a class="dl" href="https://github.com/Bibarud/TermFold/releases/latest">Download</a>
+  </div>
+</header>
+
+<article>
+  <p class="kicker">Under the hood</p>
+  <h1>How TermFold runs Debian and AI coding agents on Android without root</h1>
+  <p class="lead">Android does not want you to run a Linux system inside an app. Five restrictions got in the way, and each one has a specific, slightly odd fix. These are the notes we wish we had on day one.</p>
+
+  <p>TermFold is an Android app that unpacks a real Debian 13 root filesystem and runs it with <a href="https://proot-me.github.io/">PRoot</a>, so you can use <code>apt</code>, <code>git</code>, Node, Python and the AI coding agents (Claude Code, Codex, Gemini CLI, OpenCode and others) on a tablet. PRoot does the heavy lifting, but PRoot alone does not get you a working system. Here is what else it took.</p>
+
+  <h2><span>1</span>You can only execute files the OS installed</h2>
+  <p>Since Android 10, an app cannot <code>execve</code> anything under its own data directory, whatever the permission bits say. There is exactly one exception: the native library directory, which the system fills at install time from <code>jniLibs</code>, and only for files named <code>lib*.so</code>.</p>
+  <p>So PRoot, its loader, <code>libtalloc</code> and <code>libandroid-shmem</code> all ship as <code>lib*.so</code> and are run under those names. There is no friendlier filename to copy them to, because nowhere friendlier is executable. Renaming <code>libtalloc.so.2</code> to <code>libtalloc.so</code> breaks PRoot's <code>DT_NEEDED</code> entry, so the build rewrites that string in place (it only gets shorter, so no ELF offset moves). And <code>useLegacyPackaging</code> has to be on, or the libraries stay compressed inside the APK and <code>execve</code> fails even though <code>dlopen</code> would have worked.</p>
+
+  <h2><span>2</span>The target SDK has to be 28</h2>
+  <p>At API 29 and above the app process runs in the <code>untrusted_app</code> domain, where executing files from app data is denied outright. Termux pins <code>targetSdk = 28</code> for exactly this reason, and so does TermFold. It is the reason the app is not on Google Play, which no longer accepts such a low target.</p>
+  <div class="note">This is not a workaround you can trade away later. Raising the target SDK breaks the Linux environment entirely.</div>
+
+  <h2><span>3</span>Raw <code>fork()</code> is answered with ENOSYS</h2>
+  <p>Android's seccomp filter makes the plain <code>fork</code> syscall fail for app processes. Apps are expected to use <code>clone</code>. That does not stop PRoot: glibc programs use <code>clone</code>, so the whole Debian guest runs fine. What breaks is anything that calls <code>fork</code> directly, and BusyBox's <code>tar</code> does. The telltale sign in PRoot's verbose log is a <code>fork</code> that returns a child pid, then a <code>SIGSYS</code> that overwrites the successful result with <code>-ENOSYS</code>.</p>
+  <p>The fix is to not shell out at all. TermFold unpacks the root filesystem with its own tar reader written in Kotlin, which also means the filesystem is in place before any bundled executable has to prove it runs.</p>
+
+  <h2><span>4</span>Hard links are forbidden, and dpkg needs them</h2>
+  <p>Inside an app's directory, <code>link(2)</code> returns <code>EPERM</code>. dpkg, npm, git, pip and <code>tar</code> all assume they can make hard links. The usual workaround, PRoot's <code>--link2symlink</code>, fakes a hard link with a hidden data file kept beside the first name. It works until a program replaces that folder, which npm does on every install: the data disappears while other names still point at it. A 240 MB Claude Code binary was lost exactly that way.</p>
+  <p>TermFold instead preloads a tiny library, through <code>/etc/ld.so.preload</code>, the way a distribution would. When the kernel refuses a <code>link()</code>, the library turns it into an independent copy of the file. Every tool above accepts that; only <code>st_nlink</code> stays 1. Only glibc reads that preload file, so static and musl programs are untouched.</p>
+  <p>Debian added one more wrinkle. Packages such as <code>openssh-client</code> run <code>groupadd</code> in their post-install script, and shadow's lock for <code>/etc/group</code> uses a hard link and then insists the link count is exactly two. No copy can satisfy that, so the setup swaps in small replacements for <code>groupadd</code> and <code>useradd</code> (with <code>dpkg-divert</code>, so package updates leave them alone).</p>
+
+  <h2><span>5</span>Android hides <code>/proc/stat</code></h2>
+  <p>Apps cannot read <code>/proc/stat</code>, <code>/proc/uptime</code>, <code>/proc/version</code> and a few more. Most programs shrug, but some need them: LibreOffice refuses to start without <code>/proc/version</code>, and the new native Codex CLI works out a process's start time from the boot time in <code>/proc/stat</code> so it can record its background server. Without it, Codex stops with "failed to read start time for pid-managed app server".</p>
+  <p>PRoot can bind a file over any path, so TermFold writes plausible stand-ins for the hidden files and binds them in. The one subtle part is the boot time. A process's start time is that boot time plus a per-process offset, and a program that saved it earlier compares it with what it reads later. If the fake boot time drifted by one second between sessions, the program would conclude its own process had gone. So the value is kept steady across sessions.</p>
+
+  <h2><span>+</span>Making an agent's browser cheap</h2>
+  <p>TermFold also gives agents a real browser to test web work. The first version returned every control on the page on every call, which costs a lot of tokens on a long page. The current one follows what other agent browsers do: a short list of what is on screen, a <code>--changed</code> mode that prints only what differs from the last snapshot, <code>--find</code> to locate one control anywhere, and the full list saved to a file the agent can <code>grep</code>. On a long Wikipedia article that took a snapshot from about 29,000 characters to about 1,200. Screenshots became small JPEGs that can be skipped when the page has not changed.</p>
+
+  <div class="cta">
+    <h3>Try it on your tablet</h3>
+    <p>Free, open source (Apache-2.0), no root. Every release is a signed APK on GitHub.</p>
+    <a class="b" href="https://github.com/Bibarud/TermFold/releases/latest">Download TermFold</a>
+    <a class="g" href="https://github.com/Bibarud/TermFold">Read the source</a>
+  </div>
+</article>
+
+<footer>
+  <a href="../">&larr; TermFold home</a> &middot; <a href="https://github.com/Bibarud/TermFold/blob/main/docs/SHELL-NOTES.md">Full engineering notes</a> &middot; <a href="https://github.com/Bibarud/TermFold/discussions">Discussions</a>
+</footer>
+</body>
+</html>
