@@ -1,0 +1,91 @@
+/* TermFold site: a plain document, not a landing-page template. */
+:root {
+  --paper: #f6f2ea;
+  --ink: #1d1b18;
+  --muted: #6a645a;
+  --rule: #d8d0c0;
+  --link: #b4410d;
+  --code-bg: #ece6d8;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.62 "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--link); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+code, pre, .mono { font-family: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace; }
+code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; font-size: .88em; }
+pre { background: var(--code-bg); padding: 14px 16px; border-radius: 4px; overflow-x: auto; font-size: 14px; line-height: 1.6; margin: 0 0 20px; }
+pre code { background: none; padding: 0; font-size: inherit; }
+img { max-width: 100%; height: auto; display: block; }
+
+.page { width: min(900px, 100% - 40px); margin: 0 auto; }
+
+/* masthead */
+.mast { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; padding: 26px 0 20px; flex-wrap: wrap; }
+.mast .name { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 19px; color: var(--ink); text-decoration: none; }
+.mast .name img { width: 26px; height: auto; }
+.mast nav { display: flex; gap: 22px; font-size: 15px; }
+.mast nav a { color: var(--ink); text-decoration: none; }
+.mast nav a:hover { color: var(--link); text-decoration: underline; }
+
+/* opening */
+.open { padding: 34px 0 10px; max-width: 700px; }
+h1 {
+  font: 600 clamp(34px, 5.6vw, 54px)/1.08 "Newsreader", Georgia, "Times New Roman", serif;
+  letter-spacing: -0.012em;
+  margin: 0 0 20px;
+}
+.lead { font-size: 20px; line-height: 1.55; margin: 0 0 26px; }
+.get { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; margin: 0 0 10px; }
+.button {
+  display: inline-block; background: var(--ink); color: var(--paper); text-decoration: none;
+  padding: 11px 20px; border-radius: 4px; font-weight: 600; font-size: 16px;
+}
+.button:hover { background: #000; }
+.small { font-size: 15px; color: var(--muted); }
+.small a { color: inherit; }
+
+figure { margin: 0; }
+figure img { border: 1px solid var(--rule); border-radius: 3px; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 8px; }
+.hero-shot { margin: 40px 0 8px; }
+
+/* sections: a label in the margin, text beside it */
+.row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 0 36px; padding: 30px 0 14px; border-top: 1px solid var(--rule); margin-top: 34px; }
+.row > h2 { margin: 3px 0 0; font: 500 14px/1.4 "IBM Plex Mono", ui-monospace, Menlo, monospace; color: var(--muted); }
+.body { max-width: 640px; }
+.body p { margin: 0 0 16px; }
+.body ul, .body ol { margin: 0 0 18px; padding-left: 22px; }
+.body li { margin: 0 0 9px; }
+.body dt { font-weight: 600; margin-top: 18px; }
+.body dd { margin: 4px 0 0; }
+.shots { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; max-width: 760px; }
+.row.wide .body { max-width: 780px; }
+
+footer { border-top: 1px solid var(--rule); margin-top: 52px; padding: 26px 0 60px; font-size: 14px; color: var(--muted); }
+footer p { margin: 0 0 8px; max-width: 640px; }
+footer a { color: inherit; }
+
+/* the article */
+.article { width: min(680px, 100% - 40px); margin: 0 auto; padding-bottom: 20px; }
+.article h1 { margin-top: 24px; }
+.article h2 { font: 600 27px/1.2 "Newsreader", Georgia, serif; margin: 46px 0 12px; }
+.article p { margin: 0 0 18px; }
+.article blockquote { margin: 22px 0; padding: 2px 0 2px 18px; border-left: 3px solid var(--ink); color: #3f3a33; }
+.article .byline { color: var(--muted); font-size: 15px; margin: -4px 0 28px; }
+
+@media (max-width: 760px) {
+  body { font-size: 16.5px; }
+  .row { grid-template-columns: 1fr; gap: 6px; padding-top: 24px; margin-top: 26px; }
+  .row > h2 { margin: 0 0 4px; }
+  .shots { grid-template-columns: 1fr; }
+  .mast nav { gap: 16px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
