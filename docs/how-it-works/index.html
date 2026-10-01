@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How TermFold runs Debian and AI coding agents on Android without root</title>
-<meta name="description" content="Five Android restrictions that stop a Linux system from running inside an app (W^X, targetSdk, seccomp fork, hard links, hidden /proc) and the fix for each. Notes from building TermFold.">
+<meta name="description" content="Five Android restrictions that stop a Linux system from running inside an app (W^X, seccomp fork, hard links, hidden /proc and more) and the fix for each. Notes from building TermFold.">
 <link rel="canonical" href="https://bibarud.github.io/TermFold/how-it-works/">
 <link rel="icon" href="../media/logo.png">
 <meta name="theme-color" content="#f6f2ea">
@@ -43,9 +43,10 @@
   <p>Since Android 10 an app cannot <code>execve</code> anything under its own data directory, whatever the permission bits say. There is exactly one exception: the native library directory, which the system fills at install time from <code>jniLibs</code>, and only with files named <code>lib*.so</code>.</p>
   <p>So PRoot, its loader, <code>libtalloc</code> and <code>libandroid-shmem</code> all ship as <code>lib*.so</code> and run under those names. There is no friendlier filename to copy them to, because nowhere friendlier is executable. Renaming <code>libtalloc.so.2</code> to <code>libtalloc.so</code> breaks PRoot's <code>DT_NEEDED</code> entry, so the build rewrites that string in place. It only gets shorter, so no ELF offset moves. <code>useLegacyPackaging</code> also has to be on. Otherwise the libraries stay compressed inside the APK and <code>execve</code> fails even though <code>dlopen</code> would have worked.</p>
 
-  <h2>2. The target SDK has to be 28</h2>
-  <p>At API 29 and above the app runs in the <code>untrusted_app</code> domain, where executing files from app data is denied outright. Termux pins <code>targetSdk = 28</code> for exactly this reason, and so does TermFold. It is also why the app is not on Google Play, which no longer accepts such a low target.</p>
-  <blockquote>This is not a workaround I can drop later. Raising the target SDK breaks the Linux environment entirely.</blockquote>
+  <h2>2. The target SDK, and a thing I got wrong</h2>
+  <p>At API 29 and above an app runs in a stricter SELinux domain, where executing files from app data is denied outright. Termux pins <code>targetSdk = 28</code> for exactly this reason, and I did the same. I also told people, including in an earlier version of this page, that the target had to stay at 28 or nothing would run.</p>
+  <p>That was wrong, or at least much too strong. I later built a copy of the app with <code>targetSdk = 34</code> and ran it next to the real one on an Android 16 tablet. The whole Debian setup completed, and a binary I compiled in the app, a copied binary, a freshly built shared library and an npm package with a native executable all ran. PRoot never asks the kernel to execute files in app storage: its own loader, which Android allows to run, maps the guest program into memory instead.</p>
+  <blockquote>It is one device and one Android version, so I am not claiming it is solved. The <a href="https://github.com/Bibarud/TermFold/blob/main/docs/ANDROID-COMPATIBILITY.md">full write-up</a> has the method, what I do not know yet, and the plan.</blockquote>
 
   <h2>3. Raw fork() is answered with ENOSYS</h2>
   <p>Android's seccomp filter makes the plain <code>fork</code> syscall fail for app processes. Apps are expected to use <code>clone</code>. That does not stop PRoot, because glibc programs use <code>clone</code>, so the whole Debian guest runs fine. What breaks is anything that calls <code>fork</code> directly, and BusyBox's <code>tar</code> does. The sign in PRoot's verbose log is a <code>fork</code> that returns a child pid, followed by a <code>SIGSYS</code> that overwrites the successful result with <code>-ENOSYS</code>.</p>

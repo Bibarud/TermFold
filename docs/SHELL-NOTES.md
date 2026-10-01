@@ -32,11 +32,17 @@ rewritten in place by `tools/fetch-shell-runtime.py`. It only gets shorter, so n
 `useLegacyPackaging = true` is required. With the modern default the libraries stay compressed
 inside the APK and `execve` fails even though `dlopen` would work.
 
-### 2. `targetSdk` must be 28
+### 2. `targetSdk` is 28, but probably does not have to be
 
 At API 29+ the process runs in the `untrusted_app` domain, where `execve` on app data is denied
-outright. Termux pins `targetSdk = 28` for exactly this reason. This is not a workaround that can be
-traded away for a newer target.
+outright, and Termux pins `targetSdk = 28` for that reason. TermFold was built the same way.
+
+Later testing showed that this does **not** apply to the programs PRoot starts: the app set to
+`targetSdk = 34` ran the whole Linux environment on an Android 16 tablet (setup, a freshly compiled
+binary, a copied binary, a freshly built shared library, an npm native binary). PRoot's loader, which is
+allowed to run from `nativeLibraryDir`, maps guest programs itself and the kernel never sees an `execve`
+of a file in app storage. The method, the results, what is still unknown, the options and a migration
+plan are in [ANDROID-COMPATIBILITY.md](ANDROID-COMPATIBILITY.md).
 
 ### 3. Raw `fork()` is blocked in app processes
 

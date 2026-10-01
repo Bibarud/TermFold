@@ -113,7 +113,7 @@
       <h2>what doesn't work</h2>
       <div class="body">
         <ul>
-          <li>It is not on Google Play. To run Linux programs from its own storage the app has to target Android 9, and Play no longer accepts that.</li>
+          <li>It is not on Google Play. The app updates itself and downloads developer tools, which Play's policies restrict, and it still targets Android 9, which Play no longer accepts. Newer targets look workable; <a href="https://github.com/Bibarud/TermFold/blob/main/docs/ANDROID-COMPATIBILITY.md">the notes are here</a>.</li>
           <li>It is not on F-Droid yet. F-Droid wants every binary built from source, and the PRoot binaries come from Termux's packages. <a href="https://github.com/Bibarud/TermFold/issues/7">There is an issue</a> if you want to help.</li>
           <li>It is PRoot, not a virtual machine: no systemd, no kernel modules, no raw sockets.</li>
           <li>Google's Antigravity chat server needs more address space than Android gives apps, so only its command line works.</li>
