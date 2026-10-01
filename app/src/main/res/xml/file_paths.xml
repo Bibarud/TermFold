@@ -4,4 +4,5 @@
 <paths>
     <files-path name="linux" path="linux/rootfs/" />
     <cache-path name="share" path="share/" />
+    <cache-path name="updates" path="updates/" />
 </paths>

@@ -89,6 +89,10 @@ fun SettingsScreen(
             }
 
             item { Spacer(Modifier.height(20.dp)) }
+            item { GroupLabel(stringResource(R.string.update_title)) }
+            item { UpdatesCard() }
+
+            item { Spacer(Modifier.height(20.dp)) }
             item { GroupLabel(stringResource(R.string.settings_terminal)) }
             item { ThemePicker() }
 

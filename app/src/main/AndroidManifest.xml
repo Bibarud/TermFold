@@ -6,6 +6,8 @@
          which need no storage permission. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Lets the Settings update card hand a downloaded TermFold APK to the system installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- "Agent finished" alerts, the bubble, and the ongoing notification that keeps sessions
          running while the user is in other apps. -->
@@ -95,6 +97,10 @@
 
         <service
             android:name=".notify.KeepAliveService"
+            android:exported="false" />
+
+        <receiver
+            android:name=".notify.StopSessionsReceiver"
             android:exported="false" />
 
     </application>

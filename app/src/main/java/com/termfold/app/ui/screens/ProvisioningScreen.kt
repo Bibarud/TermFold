@@ -36,6 +36,7 @@ import com.termfold.app.shell.ShellPaths
 import com.termfold.app.ui.components.StatusDot
 import com.termfold.app.ui.theme.Mono
 import com.termfold.app.ui.theme.Palette
+import com.termfold.app.ui.theme.Motion
 
 /**
  * Shown while the bundled Debian environment is being unpacked for the first time (and while an
@@ -54,7 +55,7 @@ fun ProvisioningScreen(
     title: String = stringResource(R.string.provision_title),
     body: String = stringResource(R.string.provision_body, ShellRuntime.FLAVOUR),
 ) {
-    val animated by animateFloatAsState(targetValue = progress, label = "provision")
+    val animated by animateFloatAsState(targetValue = progress, animationSpec = Motion.standard(), label = "provision")
 
     Column(
         modifier = modifier
@@ -300,6 +301,12 @@ fun shellStatus(context: Context, sizeText: String = ""): ShellStatus {
  * which is what closed the app on opening Settings.
  */
 fun shellSizeText(context: Context): String {
+    // Counting means visiting every file, and a used environment has hundreds of thousands. The
+    // answer is kept for a while so opening Settings again costs nothing.
+    synchronized(sizeCache) {
+        val (at, text) = sizeCache
+        if (text.isNotEmpty() && System.currentTimeMillis() - at < 30L * 60 * 1000) return text
+    }
     val bytes = runCatching {
         var total = 0L
         java.nio.file.Files.walkFileTree(
@@ -322,8 +329,10 @@ fun shellSizeText(context: Context): String {
         total
     }.getOrDefault(0L)
     Log.d("ShellStatus", "rootfs bytes=$bytes")
-    return formatBytes(bytes)
+    return formatBytes(bytes).also { synchronized(sizeCache) { sizeCache = System.currentTimeMillis() to it } }
 }
+
+private var sizeCache: Pair<Long, String> = Pair(0L, String())
 
 internal fun formatBytes(bytes: Long): String = when {
     bytes >= 1L shl 30 -> String.format("%.1f GB", bytes / (1L shl 30).toDouble())

@@ -78,6 +78,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.termfold.app.ui.theme.Motion
 
 /**
  * The project's files beside whatever is on screen (a chat, a shell or the folder's session
@@ -152,8 +153,8 @@ fun FilesWorkspace(
         if (wide) {
             AnimatedVisibility(
                 visible = showPanel,
-                enter = slideInHorizontally { -it } + fadeIn(),
-                exit = slideOutHorizontally { -it } + fadeOut(),
+                enter = slideInHorizontally(Motion.slow()) { -it } + fadeIn(Motion.standard()),
+                exit = slideOutHorizontally(Motion.standard()) { -it } + fadeOut(Motion.quick()),
             ) {
                 Row {
                     tree(
@@ -231,7 +232,7 @@ fun FilesWorkspace(
 /** The phone layout: the tree slides in over the content, which dims behind it. */
 @Composable
 private fun DrawerOverlay(visible: Boolean, onDismiss: () -> Unit, panel: @Composable (Modifier) -> Unit) {
-    AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+    AnimatedVisibility(visible = visible, enter = fadeIn(Motion.standard()), exit = fadeOut(Motion.quick())) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -245,8 +246,8 @@ private fun DrawerOverlay(visible: Boolean, onDismiss: () -> Unit, panel: @Compo
     }
     AnimatedVisibility(
         visible = visible,
-        enter = slideInHorizontally { -it },
-        exit = slideOutHorizontally { -it },
+        enter = slideInHorizontally(Motion.slow()) { -it },
+        exit = slideOutHorizontally(Motion.standard()) { -it },
     ) {
         BoxWithConstraints {
             panel(
@@ -1247,6 +1248,10 @@ private fun TextEditor(
             // The WebView lives as long as the editor, so switching files keeps it warm.
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
+                onRelease = { view ->
+                    view.stopLoading()
+                    view.destroy()
+                },
                 factory = { context ->
                     WebView(context).apply {
                         setBackgroundColor(android.graphics.Color.parseColor("#08080A"))

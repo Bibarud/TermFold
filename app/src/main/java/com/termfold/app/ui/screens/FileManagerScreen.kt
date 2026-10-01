@@ -116,6 +116,7 @@ import java.nio.file.Files
 import java.text.DateFormat
 import java.util.Date
 import kotlin.coroutines.coroutineContext
+import com.termfold.app.ui.theme.Motion
 
 /** Files copied or cut in the file manager, waiting to be pasted. */
 private data class Clip(val files: List<File>, val cut: Boolean)
@@ -403,8 +404,8 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
                     )
                     androidx.compose.animation.AnimatedVisibility(
                         visible = selected.isNotEmpty(),
-                        enter = fadeIn(tween(160)) + slideInVertically(tween(200)) { -it / 3 },
-                        exit = fadeOut(tween(140)) + slideOutVertically(tween(160)) { -it / 3 },
+                        enter = fadeIn(Motion.quick()) + slideInVertically(Motion.standard()) { -it / 3 },
+                        exit = fadeOut(Motion.quick()) + slideOutVertically(Motion.quick()) { -it / 3 },
                     ) {
                         var count by remember { mutableIntStateOf(0) }
                         if (selected.isNotEmpty()) count = selected.size
@@ -447,8 +448,8 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
                             transitionSpec = {
                                 val deeper = depth(targetState) > depth(initialState)
                                 val sign = if (deeper) 1 else -1
-                                (slideInHorizontally(tween(240)) { sign * it / 6 } + fadeIn(tween(240))) togetherWith
-                                    (slideOutHorizontally(tween(200)) { -sign * it / 8 } + fadeOut(tween(160)))
+                                (slideInHorizontally(Motion.standard()) { sign * it / 6 } + fadeIn(Motion.standard())) togetherWith
+                                    (slideOutHorizontally(Motion.standard()) { -sign * it / 8 } + fadeOut(Motion.quick()))
                             },
                             label = "folder",
                         ) { path ->
@@ -472,8 +473,8 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
             val status = busy ?: message
             androidx.compose.animation.AnimatedVisibility(
                 visible = status != null,
-                enter = fadeIn() + slideInVertically { it },
-                exit = fadeOut() + slideOutVertically { it },
+                enter = fadeIn(Motion.standard()) + slideInVertically(Motion.standard()) { it },
+                exit = fadeOut(Motion.quick()) + slideOutVertically(Motion.quick()) { it },
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 20.dp, start = 16.dp, end = 16.dp),
             ) {
                 var shown by remember { mutableStateOf("") }
@@ -496,8 +497,8 @@ fun FileManagerScreen(wide: Boolean, modifier: Modifier = Modifier, startGuestPa
             // ---- Editor or viewer over the listing
             androidx.compose.animation.AnimatedVisibility(
                 visible = editing != null,
-                enter = fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 12 },
-                exit = fadeOut(tween(150)),
+                enter = fadeIn(Motion.quick()) + slideInVertically(Motion.standard()) { it / 12 },
+                exit = fadeOut(Motion.quick()),
             ) {
                 var shownFile by remember { mutableStateOf<File?>(null) }
                 editing?.let { shownFile = it }
@@ -645,8 +646,8 @@ private fun Header(
         ) {
             AnimatedVisibility(
                 visible = canGoUp,
-                enter = fadeIn() + expandHorizontally(),
-                exit = fadeOut() + shrinkHorizontally(),
+                enter = fadeIn(Motion.standard()) + expandHorizontally(Motion.standard()),
+                exit = fadeOut(Motion.quick()) + shrinkHorizontally(Motion.quick()),
             ) {
                 BareIconButton(icon = TermFoldIcons.Back, contentDescription = stringResource(R.string.fm_up), onClick = onUp)
             }
@@ -661,7 +662,7 @@ private fun Header(
                 ) {
                     AnimatedContent(
                         targetState = title,
-                        transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
+                        transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(tween(120)) },
                         label = "title",
                     ) { t ->
                         Text(
@@ -678,8 +679,8 @@ private fun Header(
                     }
                     androidx.compose.animation.AnimatedVisibility(
                         visible = readOnly,
-                        enter = fadeIn() + expandHorizontally(),
-                        exit = fadeOut() + shrinkHorizontally(),
+                        enter = fadeIn(Motion.standard()) + expandHorizontally(Motion.standard()),
+                        exit = fadeOut(Motion.quick()) + shrinkHorizontally(Motion.quick()),
                     ) {
                         Text(
                             stringResource(R.string.fm_read_only),
@@ -762,8 +763,8 @@ private fun Header(
 
         AnimatedVisibility(
             visible = !wide && searchOpen,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
+            enter = fadeIn(Motion.standard()) + expandVertically(Motion.standard()),
+            exit = fadeOut(Motion.quick()) + shrinkVertically(Motion.quick()),
         ) {
             SearchBox(query = query, onQuery = onQuery, autoFocus = true, modifier = Modifier.fillMaxWidth().padding(start = edge, end = edge, top = 6.dp))
         }
@@ -771,8 +772,8 @@ private fun Header(
         // At the top of Home or of the system the title already says where this is.
         androidx.compose.animation.AnimatedVisibility(
             visible = cwd != HOME && cwd != "/",
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
+            enter = fadeIn(Motion.standard()) + expandVertically(Motion.standard()),
+            exit = fadeOut(Motion.quick()) + shrinkVertically(Motion.quick()),
         ) {
             Breadcrumbs(cwd, onGo = onGo, modifier = Modifier.padding(start = edge - 6.dp, end = edge, top = 4.dp, bottom = 2.dp))
         }
@@ -780,8 +781,8 @@ private fun Header(
         // Waiting to be pasted: stays visible while browsing to the destination.
         AnimatedVisibility(
             visible = clip != null,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically(),
+            enter = fadeIn(Motion.standard()) + expandVertically(Motion.standard()),
+            exit = fadeOut(Motion.quick()) + shrinkVertically(Motion.quick()),
         ) {
             var shown by remember { mutableStateOf<Clip?>(null) }
             clip?.let { shown = it }
@@ -853,8 +854,8 @@ private fun SelectionBar(
     ) {
         BareIconButton(icon = TermFoldIcons.Close, contentDescription = stringResource(R.string.action_cancel), onClick = onClose)
         AnimatedContent(targetState = count, label = "count", transitionSpec = {
-            (slideInVertically { if (targetState > initialState) it else -it } + fadeIn()) togetherWith
-                (slideOutVertically { if (targetState > initialState) -it else it } + fadeOut())
+            (slideInVertically(Motion.standard()) { if (targetState > initialState) it else -it } + fadeIn(Motion.standard())) togetherWith
+                (slideOutVertically(Motion.quick()) { if (targetState > initialState) -it else it } + fadeOut(Motion.quick()))
         }) { n ->
             Text(
                 stringResource(R.string.fm_selected, n),
@@ -933,7 +934,7 @@ private fun CheckEntry(label: String, checked: Boolean, icon: ImageVector? = nul
         text = { Text(label, color = if (checked) Palette.Text else Palette.TextDim) },
         leadingIcon = icon?.let { { Icon(it, null, tint = if (checked) Palette.Text else Palette.TextFaint, modifier = Modifier.size(18.dp)) } },
         trailingIcon = {
-            AnimatedVisibility(visible = checked, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+            AnimatedVisibility(visible = checked, enter = scaleIn(Motion.standard(), initialScale = 0.9f) + fadeIn(Motion.standard()), exit = scaleOut(Motion.quick(), targetScale = 0.9f) + fadeOut(Motion.quick())) {
                 Icon(TermFoldIcons.Check, null, tint = Palette.Accent, modifier = Modifier.size(16.dp))
             }
         },
@@ -969,7 +970,7 @@ private fun SearchBox(query: String, onQuery: (String) -> Unit, autoFocus: Boole
                 modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
         }
-        AnimatedVisibility(visible = query.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
+        AnimatedVisibility(visible = query.isNotEmpty(), enter = fadeIn(Motion.standard()) + scaleIn(Motion.standard(), initialScale = 0.9f), exit = fadeOut(Motion.quick()) + scaleOut(Motion.quick(), targetScale = 0.9f)) {
             BareIconButton(icon = TermFoldIcons.Close, contentDescription = stringResource(R.string.action_cancel), onClick = { onQuery("") }, tint = Palette.TextFaint, size = 32)
         }
     }
@@ -1058,8 +1059,8 @@ private fun PlacesPane(cwd: String, projects: List<String>, onGo: (String) -> Un
 
 @Composable
 private fun PlaceRow(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (active) Palette.CardPressed else Color.Transparent, tween(180), label = "placeBg")
-    val fg by animateColorAsState(if (active) Palette.Text else Palette.TextDim, tween(180), label = "placeFg")
+    val bg by animateColorAsState(if (active) Palette.CardPressed else Color.Transparent, Motion.quick(), label = "placeBg")
+    val fg by animateColorAsState(if (active) Palette.Text else Palette.TextDim, Motion.quick(), label = "placeFg")
     Row(
         Modifier
             .fillMaxWidth()
@@ -1198,7 +1199,7 @@ private fun ItemRow(
     highlight: String? = null,
 ) {
     val isSel = item.key in actions.selected
-    val bg by animateColorAsState(if (isSel) Palette.CardPressed else Color.Transparent, tween(160), label = "rowBg")
+    val bg by animateColorAsState(if (isSel) Palette.CardPressed else Color.Transparent, Motion.quick(), label = "rowBg")
     Box(modifier) {
         Row(
             Modifier
@@ -1240,7 +1241,7 @@ private fun ItemRow(
             Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) {
                 AnimatedContent(
                     targetState = actions.selected.isEmpty() to isSel,
-                    transitionSpec = { (scaleIn(initialScale = 0.6f) + fadeIn()) togetherWith (scaleOut(targetScale = 0.6f) + fadeOut()) },
+                    transitionSpec = { (scaleIn(Motion.standard(), initialScale = 0.6f) + fadeIn(Motion.standard())) togetherWith (scaleOut(Motion.quick(), targetScale = 0.6f) + fadeOut(Motion.quick())) },
                     label = "trailing",
                 ) { (idle, sel) ->
                     when {
@@ -1264,7 +1265,7 @@ private fun ItemRow(
 @Composable
 private fun Tile(item: Item, actions: ItemActions, modifier: Modifier = Modifier) {
     val isSel = item.key in actions.selected
-    val bg by animateColorAsState(if (isSel) Palette.CardPressed else Palette.Card, tween(160), label = "tileBg")
+    val bg by animateColorAsState(if (isSel) Palette.CardPressed else Palette.Card, Motion.quick(), label = "tileBg")
     Box(modifier) {
         Column(
             Modifier
@@ -1295,7 +1296,7 @@ private fun Tile(item: Item, actions: ItemActions, modifier: Modifier = Modifier
             )
         }
         Box(Modifier.align(Alignment.TopEnd).padding(10.dp)) {
-            AnimatedVisibility(visible = actions.selected.isNotEmpty(), enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+            AnimatedVisibility(visible = actions.selected.isNotEmpty(), enter = scaleIn(Motion.standard(), initialScale = 0.9f) + fadeIn(Motion.standard()), exit = scaleOut(Motion.quick(), targetScale = 0.9f) + fadeOut(Motion.quick())) {
                 SelectMark(isSel)
             }
             actions.menu(item)
@@ -1319,7 +1320,7 @@ private fun Tile(item: Item, actions: ItemActions, modifier: Modifier = Modifier
 
 @Composable
 private fun SelectMark(selected: Boolean) {
-    val bg by animateColorAsState(if (selected) Palette.Accent else Color.Transparent, tween(140), label = "markBg")
+    val bg by animateColorAsState(if (selected) Palette.Accent else Color.Transparent, Motion.quick(), label = "markBg")
     Box(
         Modifier
             .size(22.dp)
@@ -1328,7 +1329,7 @@ private fun SelectMark(selected: Boolean) {
             .border(1.5.dp, if (selected) Palette.Accent else Palette.TextFaint, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+        AnimatedVisibility(visible = selected, enter = scaleIn(Motion.standard(), initialScale = 0.9f) + fadeIn(Motion.standard()), exit = scaleOut(Motion.quick(), targetScale = 0.9f) + fadeOut(Motion.quick())) {
             Icon(TermFoldIcons.Check, null, tint = Palette.OnAccent, modifier = Modifier.size(14.dp))
         }
     }

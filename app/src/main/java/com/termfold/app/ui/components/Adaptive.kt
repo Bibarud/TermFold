@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.termfold.app.ui.theme.Palette
+import com.termfold.app.ui.theme.Motion
 
 /** Layout breakpoints, using the standard compact / medium / expanded split. */
 enum class WindowWidth { COMPACT, MEDIUM, EXPANDED }
@@ -111,12 +112,12 @@ fun NavRail(
 private fun RailItem(tab: NavTab, active: Boolean, onClick: () -> Unit) {
     val background by animateColorAsState(
         targetValue = if (active) Palette.CardPressed else Color.Transparent,
-        animationSpec = tween(180),
+        animationSpec = Motion.quick(),
         label = "railBackground",
     )
     val tint by animateColorAsState(
         targetValue = if (active) Palette.Text else Palette.TextFaint,
-        animationSpec = tween(180),
+        animationSpec = Motion.quick(),
         label = "railTint",
     )
     Column(
@@ -128,12 +129,7 @@ private fun RailItem(tab: NavTab, active: Boolean, onClick: () -> Unit) {
             .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            imageVector = if (active) tab.icon else tab.inactiveIcon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(22.dp),
-        )
+        NavTabIcon(tab, active, tint)
         Spacer(Modifier.height(5.dp))
         Text(
             text = stringResource(tab.labelRes),

@@ -136,14 +136,24 @@ object BrowserBridge {
         var driver = controller
         if (driver == null) {
             withContext(Dispatchers.Main) { Preview.open() }
-            val until = System.currentTimeMillis() + 15_000
+            // With TermFold on screen the pane appears by itself. With nothing on screen (the app
+            // in the background, the bubble collapsed) the user has to bring it up, so tell them
+            // and give them time.
+            val nobodyLooking = !com.termfold.app.notify.AppPresence.inForeground
+            if (nobodyLooking) com.termfold.app.notify.Notifier.askForBrowser(context)
+            val until = System.currentTimeMillis() + if (nobodyLooking) 75_000 else 15_000
             while (driver == null && System.currentTimeMillis() < until) {
                 delay(100)
                 driver = controller
             }
+            if (nobodyLooking) com.termfold.app.notify.Notifier.cancelBrowserRequest(context)
         }
         if (driver == null) {
-            return JSONObject().put("error", "The preview browser did not open. Is TermFold on screen?")
+            return JSONObject().put(
+                "error",
+                "The browser can only work while TermFold is on screen (the app, or its bubble opened). " +
+                    "The user has been asked to open it; try the command again once they have.",
+            )
         }
         running.incrementAndGet()
         return runCatching {

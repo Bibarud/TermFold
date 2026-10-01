@@ -117,6 +117,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.termfold.app.ui.theme.Motion
 
 // A comfortable reading width: on a tablet the chat stays a column, not a banner.
 private val ContentMaxWidth = 680.dp
@@ -611,8 +612,8 @@ private fun Timeline(state: AcpUiState, workspaceDir: String, modifier: Modifier
         // Back to the newest message after scrolling up to read.
         androidx.compose.animation.AnimatedVisibility(
             visible = !following && listState.canScrollForward,
-            enter = fadeIn() + androidx.compose.animation.scaleIn(initialScale = 0.8f),
-            exit = fadeOut() + androidx.compose.animation.scaleOut(targetScale = 0.8f),
+            enter = fadeIn(Motion.standard()) + androidx.compose.animation.scaleIn(Motion.standard(), initialScale = 0.8f),
+            exit = fadeOut(Motion.quick()) + androidx.compose.animation.scaleOut(Motion.quick(), targetScale = 0.8f),
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
         ) {
             Row(
@@ -846,11 +847,11 @@ private fun ThoughtRow(item: AcpItem.Thought, live: Boolean) {
                     contentKey = { it.index },
                     transitionSpec = {
                         (
-                            androidx.compose.animation.slideInVertically { it / 2 } +
-                                androidx.compose.animation.fadeIn()
+                            androidx.compose.animation.slideInVertically(Motion.standard()) { it / 2 } +
+                                androidx.compose.animation.fadeIn(Motion.standard())
                             ) togetherWith (
-                            androidx.compose.animation.slideOutVertically { -it / 2 } +
-                                androidx.compose.animation.fadeOut()
+                            androidx.compose.animation.slideOutVertically(Motion.quick()) { -it / 2 } +
+                                androidx.compose.animation.fadeOut(Motion.quick())
                             )
                     },
                     modifier = Modifier.weight(1f),
@@ -1472,8 +1473,8 @@ private fun QueuedList(
 ) {
     androidx.compose.animation.AnimatedVisibility(
         visible = queued.isNotEmpty(),
-        enter = fadeIn() + androidx.compose.animation.expandVertically(),
-        exit = fadeOut() + androidx.compose.animation.shrinkVertically(),
+        enter = fadeIn(Motion.standard()) + androidx.compose.animation.expandVertically(Motion.standard()),
+        exit = fadeOut(Motion.quick()) + androidx.compose.animation.shrinkVertically(Motion.quick()),
     ) {
         Column(Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 10.dp)) {
             queued.forEach { item ->

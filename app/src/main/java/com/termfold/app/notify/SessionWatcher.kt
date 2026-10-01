@@ -37,6 +37,20 @@ object SessionWatcher {
     private val shells = HashMap<String, ShellTrack>()
     private var keepingAlive = false
 
+    /** When something last needed the process kept alive; the notification lingers a while after. */
+    private var lastActive = 0L
+
+    /** Idle sessions are kept protected this long after the last real work, then released. */
+    private const val IDLE_GRACE_MS = 5 * 60_000L
+
+    /** Ends every agent chat and shell and removes the notification: what its Stop button does. */
+    fun stopAll(context: Context) {
+        runCatching { AcpSessions.all().keys.forEach { AcpSessions.close(it) } }
+        runCatching { TerminalHost.liveSessions().forEach { TerminalHost.closeSession(it.key) } }
+        KeepAliveService.stop(context)
+        keepingAlive = false
+    }
+
     fun start(app: Application) {
         CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
             while (true) {
@@ -61,6 +75,9 @@ object SessionWatcher {
         val now = System.currentTimeMillis()
         var live = 0
         var working = 0
+        // Sessions that are doing something or waiting for the user (a permission prompt), as
+        // opposed to one just sitting at an idle prompt, which needs nothing kept alive.
+        var active = 0
 
         // ---- Agent chats
         val clients = AcpSessions.all()
@@ -70,6 +87,7 @@ object SessionWatcher {
             val track = acp.getOrPut(key) { AcpTrack(busy = state.agentBusy, permissionId = state.pendingPermission?.requestId) }
             live++
             if (state.agentBusy) working++
+            if (state.agentBusy || state.pendingPermission != null) active++
             val watching = AppPresence.isWatching(key)
             if (watching) Notifier.cancelFor(context, key)
 
@@ -107,6 +125,7 @@ object SessionWatcher {
             val track = shells.getOrPut(t.key) { ShellTrack() }
             if (t.working) {
                 working++
+                active++
                 if (track.busySince == 0L || now - track.lastActive > SHELL_QUIET_MS) track.busySince = now
                 track.lastActive = now
                 continue
@@ -128,9 +147,10 @@ object SessionWatcher {
         }
 
         // ---- Keep the process alive while the user is elsewhere and sessions exist.
-        val wantAlive = live > 0 && !AppPresence.inForeground
+        if (active > 0 || AppPresence.inForeground) lastActive = now
+        val wantAlive = live > 0 && !AppPresence.inForeground && (active > 0 || now - lastActive < IDLE_GRACE_MS)
         if (wantAlive) {
-            KeepAliveService.update(context, live, working)
+            KeepAliveService.update(context, active, working)
             keepingAlive = true
         } else if (keepingAlive) {
             KeepAliveService.stop(context)
@@ -154,7 +174,7 @@ class KeepAliveService : android.app.Service() {
     override fun onBind(intent: Intent?) = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val live = intent?.getIntExtra(EXTRA_LIVE, 1) ?: 1
+        val live = intent?.getIntExtra(EXTRA_LIVE, 0) ?: 0
         val working = intent?.getIntExtra(EXTRA_WORKING, 0) ?: 0
         startForeground(Notifier.RUNNING_ID, notification(this, live, working))
         return START_NOT_STICKY
@@ -181,19 +201,43 @@ class KeepAliveService : android.app.Service() {
             runCatching { context.stopService(Intent(context, KeepAliveService::class.java)) }
         }
 
-        private fun notification(context: Context, live: Int, working: Int) =
-            androidx.core.app.NotificationCompat.Builder(context, Notifier.CHANNEL_RUNNING)
+        private fun notification(context: Context, active: Int, working: Int): android.app.Notification {
+            val stop = android.app.PendingIntent.getBroadcast(
+                context,
+                Notifier.RUNNING_ID + 1,
+                Intent(context, StopSessionsReceiver::class.java).setAction(StopSessionsReceiver.ACTION),
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+            )
+            return androidx.core.app.NotificationCompat.Builder(context, Notifier.CHANNEL_RUNNING)
                 .setSmallIcon(R.drawable.ic_stat_termfold)
                 .setColor(0xFFFF7A2E.toInt())
-                .setContentTitle(context.resources.getQuantityString(R.plurals.running_title, live, live))
-                .setContentText(
-                    if (working > 0) context.resources.getQuantityString(R.plurals.running_working, working, working)
-                    else context.getString(R.string.running_idle),
+                // Only sessions that are really doing something are counted; one idle at its
+                // prompt used to be reported as "running" for as long as it existed.
+                .setContentTitle(
+                    if (active > 0) context.resources.getQuantityString(R.plurals.running_title, active, active)
+                    else context.getString(R.string.running_idle_title),
                 )
+                .setContentText(
+                    if (active > 0) context.getString(R.string.running_active_text)
+                    else context.getString(R.string.running_idle_text),
+                )
+                .addAction(0, context.getString(R.string.running_stop), stop)
                 .setOngoing(true)
                 .setSilent(true)
                 .setShowWhen(false)
                 .setContentIntent(Notifier.openIntent(context, AppPresence.place, requestCode = Notifier.RUNNING_ID))
                 .build()
+        }
+    }
+}
+
+/** The notification's Stop button: ends every session, so nothing keeps running and the notification goes. */
+class StopSessionsReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION) SessionWatcher.stopAll(context.applicationContext)
+    }
+
+    companion object {
+        const val ACTION = "com.termfold.app.action.STOP_SESSIONS"
     }
 }

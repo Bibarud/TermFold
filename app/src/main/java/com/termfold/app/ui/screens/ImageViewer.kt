@@ -71,6 +71,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.termfold.app.ui.theme.Motion
 
 private const val MAX_SCALE = 6f
 
@@ -155,13 +156,13 @@ internal fun ImageViewer(file: File, onClose: () -> Unit, modifier: Modifier = M
                         onDoubleTap = { tap ->
                             scope.launch {
                                 if (scale.value > 1.05f) {
-                                    launch { scale.animateTo(1f, spring()) }
-                                    offset.animateTo(Offset.Zero, spring())
+                                    launch { scale.animateTo(1f, Motion.settle()) }
+                                    offset.animateTo(Offset.Zero, Motion.settle())
                                 } else {
                                     val target = 2.5f
                                     val centre = Offset(box.width / 2f, box.height / 2f)
-                                    launch { scale.animateTo(target, spring()) }
-                                    offset.animateTo(clamp((centre - tap) * (target - 1f), target), spring())
+                                    launch { scale.animateTo(target, Motion.settle()) }
+                                    offset.animateTo(clamp((centre - tap) * (target - 1f), target), Motion.settle())
                                 }
                             }
                         },
@@ -183,7 +184,7 @@ internal fun ImageViewer(file: File, onClose: () -> Unit, modifier: Modifier = M
                 Picture.Failed -> Text(stringResource(R.string.files_binary), style = MaterialTheme.typography.bodyMedium, color = Palette.TextDim)
                 is Picture.Ready -> androidx.compose.animation.AnimatedVisibility(
                     visible = true,
-                    enter = fadeIn(tween(220)) + scaleIn(tween(260), initialScale = 0.96f),
+                    enter = fadeIn(Motion.standard()) + scaleIn(Motion.slow(), initialScale = 0.96f),
                 ) {
                     Image(
                         p.bitmap,
@@ -208,8 +209,8 @@ internal fun ImageViewer(file: File, onClose: () -> Unit, modifier: Modifier = M
             ) {
                 AnimatedVisibility(
                     visible = message != null,
-                    enter = fadeIn() + slideInVertically { it / 2 },
-                    exit = fadeOut() + slideOutVertically { it / 2 },
+                    enter = fadeIn(Motion.standard()) + slideInVertically(Motion.standard()) { it / 2 },
+                    exit = fadeOut(Motion.quick()) + slideOutVertically(Motion.quick()) { it / 2 },
                 ) {
                     Text(
                         message.orEmpty(),

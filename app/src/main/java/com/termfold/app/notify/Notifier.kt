@@ -157,11 +157,24 @@ object Notifier {
      * the bubble appears; when the user has limited bubbles to chosen conversations, the
      * notification shows in the shade too, where its bubble button turns it into one.
      */
-    fun showBubble(context: Context, place: AppPresence.Place, label: String) {
+    private val bubbleWorker = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "bubble").apply { isDaemon = true } }
+
+    /**
+     * Posting the bubble talks to the system three times (shortcut, icon, notification) and is
+     * called while the user is already leaving the app, so it runs on its own thread; the screen
+     * transition is never held up by it. One worker keeps show and cancel in order.
+     */
+    fun showBubble(context: Context, place: AppPresence.Place, label: String, expand: Boolean = false) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !bubblesEnabled(context) || !canNotify(context)) return
+        val app = context.applicationContext
+        bubbleWorker.execute { runCatching { postBubble(app, place, label, expand) } }
+    }
+
+    private fun postBubble(context: Context, place: AppPresence.Place, label: String, expand: Boolean) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || !bubblesEnabled(context) || !canNotify(context)) return
         val app = Person.Builder()
             .setName(context.getString(R.string.app_name))
-            .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
+            .setIcon(bubbleIcon(context))
             .setBot(true)
             .setImportant(true)
             .setKey(SHORTCUT_ID)
@@ -174,7 +187,7 @@ object Notifier {
                 ShortcutInfoCompat.Builder(context, SHORTCUT_ID)
                     .setShortLabel(context.getString(R.string.app_name))
                     .setLongLived(true)
-                    .setIcon(IconCompat.createWithResource(context, R.mipmap.ic_launcher))
+                    .setIcon(bubbleIcon(context))
                     .setIntent(Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW))
                     .setPerson(app)
                     .setIsConversation()
@@ -195,10 +208,10 @@ object Notifier {
         val allowed = bubblesAllowed(context)
         val metadata = NotificationCompat.BubbleMetadata.Builder(
             bubbleIntent,
-            IconCompat.createWithResource(context, R.mipmap.ic_launcher),
+            bubbleIcon(context),
         )
             .setDesiredHeight(640)
-            .setAutoExpandBubble(false)
+            .setAutoExpandBubble(expand)
             .setSuppressNotification(allowed)
             .build()
 
@@ -223,8 +236,67 @@ object Notifier {
         runCatching { NotificationManagerCompat.from(context).notify(BUBBLE_ID, notification) }
     }
 
+    private var bubbleBitmap: android.graphics.Bitmap? = null
+
+    /**
+     * The bubble's face: a round dark disc with the logo well inside it. Android crops a bubble's
+     * icon to a circle, and the launcher icon fills its whole square, so used as it is the logo
+     * touched the edge and the bubble looked square. This is an adaptive-icon bitmap (the system
+     * masks the middle 72 of its 108 units) with the disc painted to exactly that size, so the
+     * result is round even where the system does not mask.
+     */
+    private fun bubbleIcon(context: Context): IconCompat {
+        val bitmap = bubbleBitmap ?: runCatching {
+            val size = 432
+            val out = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(out)
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            paint.color = androidx.core.content.ContextCompat.getColor(context, R.color.icon_bg)
+            canvas.drawCircle(size / 2f, size / 2f, size * 72f / 108f / 2f, paint)
+            val logo = android.graphics.BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher_foreground)
+            if (logo != null) {
+                // The launcher artwork is already inset; shrink it so the logo sits clearly inside the disc.
+                val side = (size * 0.70f).toInt()
+                val scaled = android.graphics.Bitmap.createScaledBitmap(logo, side, side, true)
+                canvas.drawBitmap(scaled, (size - side) / 2f, (size - side) / 2f, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            }
+            out
+        }.getOrNull()
+        if (bitmap == null) return IconCompat.createWithResource(context, R.mipmap.ic_launcher)
+        bubbleBitmap = bitmap
+        return IconCompat.createWithAdaptiveBitmap(bitmap)
+    }
+
+    private const val BROWSER_REQUEST_TAG = "browser-request"
+
+    /**
+     * An agent wants the browser while no TermFold window is showing. Tells the user, and tries to
+     * bring the bubble up opened; tapping the notification opens the app where they left off.
+     */
+    fun askForBrowser(context: Context) {
+        val place = AppPresence.place
+        if (place != null) runCatching { showBubble(context, place, AppPresence.label.ifBlank { context.getString(R.string.app_name) }, expand = true) }
+        if (!canNotify(context)) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_ATTENTION)
+            .setSmallIcon(R.drawable.ic_stat_termfold)
+            .setColor(0xFFFF7A2E.toInt())
+            .setContentTitle(context.getString(R.string.notify_browser_title))
+            .setContentText(context.getString(R.string.notify_browser_body))
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(openIntent(context, place, requestCode = BUBBLE_ID + 2))
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(BROWSER_REQUEST_TAG, 0, notification) }
+    }
+
+    fun cancelBrowserRequest(context: Context) {
+        NotificationManagerCompat.from(context).cancel(BROWSER_REQUEST_TAG, 0)
+    }
+
     fun cancelBubble(context: Context) {
-        NotificationManagerCompat.from(context).cancel(BUBBLE_ID)
+        val app = context.applicationContext
+        bubbleWorker.execute { runCatching { NotificationManagerCompat.from(app).cancel(BUBBLE_ID) } }
     }
 
     // ---- Intents ------------------------------------------------------------------------------

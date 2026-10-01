@@ -121,6 +121,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.termfold.app.ui.theme.Motion
 
 /** How wide the page is laid out: the pane itself, a phone, or a desktop window. */
 private enum class Viewport { FIT, PHONE, DESKTOP }
@@ -375,12 +376,19 @@ fun PreviewPane(
                 override fun uploadTaken() = uploadTaken
             },
         )
-        BrowserBridge.controller = driver
     }
     // Minimized with no agent at work, or the app in the background: pause the page, so its
     // animations and video stop drawing. An agent's next command wakes it (BrowserDriver).
     val lifecycleState by androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
     val visible = lifecycleState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+    // Only a window that is on screen holds the browser. The main window and the bubble can both
+    // have this pane composed; the one that is stopped (a collapsed bubble, the app behind it)
+    // would otherwise keep the agent's commands and show the user nothing.
+    LaunchedEffect(driver, visible) {
+        val d = driver ?: return@LaunchedEffect
+        if (visible) BrowserBridge.controller = d
+        else if (BrowserBridge.controller === d) BrowserBridge.controller = null
+    }
     LaunchedEffect(webView, parked, agent.active, visible) {
         val view = webView ?: return@LaunchedEffect
         if (!agent.active && (parked || !visible)) view.onPause() else view.onResume()
@@ -480,7 +488,7 @@ fun PreviewPane(
         }
         // Loading progress, a hairline under the toolbar.
         Box(Modifier.fillMaxWidth().height(2.dp).background(Palette.BorderSoft)) {
-            val shown by animateFloatAsState(if (progress >= 100 || showStart) 0f else progress / 100f, label = "progress")
+            val shown by animateFloatAsState(if (progress >= 100 || showStart) 0f else progress / 100f, animationSpec = Motion.standard(), label = "progress")
             if (shown > 0f) Box(Modifier.fillMaxWidth(shown).fillMaxHeight().background(Palette.Accent))
         }
 
@@ -497,6 +505,13 @@ fun PreviewPane(
             ) {
                 AndroidView(
                     modifier = Modifier.fillMaxSize(),
+                    // Tear the WebView down when it leaves the screen. Without this every pane that was
+                    // ever shown (the bubble's, a restored one) kept its page, scripts and renderer
+                    // memory alive, and closing a window had to clean up all at once.
+                    onRelease = { view ->
+                        view.stopLoading()
+                        view.destroy()
+                    },
                     // No page yet: nothing to show, and no white flash behind the start page.
                     update = { view -> view.visibility = if (showStart) android.view.View.INVISIBLE else android.view.View.VISIBLE },
                     factory = { ctx ->
@@ -665,8 +680,8 @@ fun PreviewPane(
             // ---- Console, over the bottom of the page
             androidx.compose.animation.AnimatedVisibility(
                 visible = consoleOpen,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
+                enter = slideInVertically(Motion.standard()) { it } + fadeIn(Motion.standard()),
+                exit = slideOutVertically(Motion.quick()) { it } + fadeOut(Motion.quick()),
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
                 ConsolePanel(
@@ -1086,8 +1101,8 @@ fun PreviewButton(projectDir: String?) {
         )
         androidx.compose.animation.AnimatedVisibility(
             visible = running && !open,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(Motion.standard()),
+            exit = fadeOut(Motion.quick()),
             modifier = Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 8.dp),
         ) {
             Box(Modifier.size(7.dp).clip(CircleShape).background(Palette.Green))
@@ -1102,7 +1117,7 @@ fun PreviewButton(projectDir: String?) {
  */
 @Composable
 private fun AgentPointer(at: androidx.compose.ui.geometry.Offset, ripple: Float, label: String, visible: Boolean) {
-    val alpha by animateFloatAsState(if (visible && at != androidx.compose.ui.geometry.Offset.Unspecified) 1f else 0f, androidx.compose.animation.core.tween(300), label = "pointer")
+    val alpha by animateFloatAsState(if (visible && at != androidx.compose.ui.geometry.Offset.Unspecified) 1f else 0f, Motion.slow(), label = "pointer")
     if (alpha == 0f || at == androidx.compose.ui.geometry.Offset.Unspecified) return
     Box(Modifier.fillMaxSize().graphicsLayer { this.alpha = alpha }) {
         androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
@@ -1151,7 +1166,7 @@ private fun AgentPointer(at: androidx.compose.ui.geometry.Offset, ripple: Float,
 /** While an agent drives: a glowing orange frame and a bar saying so, with Stop. */
 @Composable
 private fun AgentFrame(active: Boolean, paused: Boolean, label: String) {
-    val shown by animateFloatAsState(if (active) 1f else 0f, androidx.compose.animation.core.tween(350), label = "frameShown")
+    val shown by animateFloatAsState(if (active) 1f else 0f, Motion.slow(), label = "frameShown")
     if (shown > 0f) {
         // Created only while shown: an infinite animation ticks every frame (144 a second on some
         // screens) for as long as it exists, even when nothing reads it.
@@ -1176,8 +1191,8 @@ private fun AgentFrame(active: Boolean, paused: Boolean, label: String) {
     }
     androidx.compose.animation.AnimatedVisibility(
         visible = active || paused,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
+        enter = slideInVertically(Motion.standard()) { -it } + fadeIn(Motion.standard()),
+        exit = slideOutVertically(Motion.quick()) { -it } + fadeOut(Motion.quick()),
     ) {
         Row(
             Modifier
@@ -1238,7 +1253,7 @@ fun PreviewPill(modifier: Modifier = Modifier) {
         working -> stringResource(R.string.agent_browser_working)
         else -> state.url?.let(::pillName) ?: stringResource(R.string.preview_title)
     }
-    val border by androidx.compose.animation.animateColorAsState(if (working) Palette.Accent else Palette.Border, label = "pillBorder")
+    val border by androidx.compose.animation.animateColorAsState(if (working) Palette.Accent else Palette.Border, animationSpec = Motion.quick(), label = "pillBorder")
     Row(
         modifier
             .width(236.dp)
@@ -1261,7 +1276,7 @@ fun PreviewPill(modifier: Modifier = Modifier) {
         Spacer(Modifier.width(10.dp))
         androidx.compose.animation.AnimatedContent(
             targetState = text,
-            transitionSpec = { (fadeIn(androidx.compose.animation.core.tween(180)) + slideInVertically { it / 3 }) togetherWith fadeOut(androidx.compose.animation.core.tween(120)) },
+            transitionSpec = { (fadeIn(Motion.quick()) + slideInVertically(Motion.standard()) { it / 3 }) togetherWith fadeOut(androidx.compose.animation.core.tween(120)) },
             label = "pillText",
             modifier = Modifier.weight(1f),
         ) { t ->

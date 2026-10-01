@@ -100,6 +100,7 @@ import com.termfold.app.ui.screens.TerminalScreen
 import com.termfold.app.ui.screens.TextPromptDialog
 import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldTheme
+import com.termfold.app.ui.theme.Motion
 
 class MainActivity : TermFoldActivity() {
 
@@ -193,12 +194,12 @@ private fun Destination.depth(): Int = when (this) {
  */
 private fun <T> directionalTransition(rankOf: (T) -> Int): AnimatedContentTransitionScope<T>.() -> ContentTransform = {
     val forward = rankOf(targetState) > rankOf(initialState)
-    val enter = slideInHorizontally(tween(260)) { full ->
+    val enter = slideInHorizontally(Motion.slow()) { full ->
         if (forward) full / 4 else -full / 4
-    } + fadeIn(tween(220))
-    val exit = slideOutHorizontally(tween(260)) { full ->
+    } + fadeIn(Motion.standard())
+    val exit = slideOutHorizontally(Motion.slow()) { full ->
         if (forward) -full / 4 else full / 4
-    } + fadeOut(tween(180))
+    } + fadeOut(Motion.quick())
     enter togetherWith exit
 }
 
@@ -276,6 +277,9 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
     // costs a few seconds and is then never repeated.
     LaunchedEffect(Unit) { viewModel.ensureShellReady() }
 
+    // A new release is looked for in the background (at most twice a day); Settings shows a dot.
+    LaunchedEffect(Unit) { com.termfold.app.update.UpdateManager.checkIfDue(context) }
+
     // Projects are folders in ~/projects; the list follows that folder (a project made with
     // mkdir in a shell appears, a deleted one goes), checked on start and on every return.
     LaunchedEffect(shell.state) {
@@ -346,6 +350,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
     }
 
     val windowWidth = currentWindowWidth()
+    // Animations are slightly slower on a tablet, where surfaces are bigger and travel further.
+    androidx.compose.runtime.SideEffect { Motion.configure(windowWidth.isWide) }
 
     // Phone and tablet share one tree; only the navigation container and the folder presentation
     // differ, so there is no second layout to keep in sync.
@@ -547,8 +553,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
                 visible = windowWidth.isWide && preview.open && !previewMax,
                 // Not clipped: minimized, the pane has no width of its own and must still be drawn
                 // (beneath the work) for its page to keep rendering.
-                enter = androidx.compose.animation.expandHorizontally(expandFrom = Alignment.Start, clip = false) + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkHorizontally(shrinkTowards = Alignment.Start, clip = false) + androidx.compose.animation.fadeOut(),
+                enter = androidx.compose.animation.expandHorizontally(animationSpec = Motion.slow(), expandFrom = Alignment.Start, clip = false) + androidx.compose.animation.fadeIn(Motion.standard()),
+                exit = androidx.compose.animation.shrinkHorizontally(animationSpec = Motion.standard(), shrinkTowards = Alignment.Start, clip = false) + androidx.compose.animation.fadeOut(Motion.quick()),
                 modifier = Modifier.zIndex(if (preview.minimized) -1f else 0f),
             ) {
                 val total = LocalConfiguration.current.screenWidthDp.dp - 84.dp
@@ -592,8 +598,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
             visible = preview.open && (!windowWidth.isWide || previewMax),
             // A fade, not a slide: a moving layer can leave the WebView (a native view) drawn
             // out of place on some phones.
-            enter = androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.fadeOut(),
+            enter = androidx.compose.animation.fadeIn(Motion.standard()),
+            exit = androidx.compose.animation.fadeOut(Motion.quick()),
             modifier = Modifier.zIndex(if (preview.minimized) -1f else 1f),
         ) {
             BackHandler(enabled = !preview.minimized) { if (previewMax) previewMax = false else com.termfold.app.preview.Preview.close() }
@@ -616,8 +622,8 @@ internal fun TermFoldRoot(viewModel: AppViewModel) {
         // ---- The minimized browser: a pill that can be dragged anywhere.
         androidx.compose.animation.AnimatedVisibility(
             visible = preview.open && preview.minimized,
-            enter = androidx.compose.animation.scaleIn(initialScale = 0.8f) + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.scaleOut(targetScale = 0.8f) + androidx.compose.animation.fadeOut(),
+            enter = androidx.compose.animation.scaleIn(Motion.standard(), initialScale = 0.8f) + androidx.compose.animation.fadeIn(Motion.standard()),
+            exit = androidx.compose.animation.scaleOut(Motion.quick(), targetScale = 0.8f) + androidx.compose.animation.fadeOut(Motion.quick()),
             modifier = Modifier.fillMaxSize(),
         ) {
             androidx.compose.foundation.layout.BoxWithConstraints(

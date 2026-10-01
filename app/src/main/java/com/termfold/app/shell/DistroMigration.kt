@@ -20,7 +20,7 @@ import java.nio.file.attribute.BasicFileAttributes
  * which is instant, needs no extra space, and cannot leave two diverging copies. That covers the
  * home directory (projects, agent sign-ins, shell history, git config), `/opt` (Node.js and every
  * agent CLI installed with npm, which are plain glibc programs and run the same on Debian), `/home`,
- * `/srv` and the scripts in `/usr/local/bin`. What is not kept is the operating system itself: the
+ * `/srv`, the scripts in `/usr/local/bin` and the packages in `/usr/local/lib/node_modules`. What is not kept is the operating system itself: the
  * packages installed with apt belong to Ubuntu. Their names are recorded, and the first shell
  * session installs them again from Debian ([ShellSetup], `termfold-setup.sh`).
  *
@@ -50,6 +50,9 @@ object DistroMigration {
         "home" to emptySet(),
         "srv" to emptySet(),
         "usr/local/bin" to emptySet(),
+        // Packages installed with `npm -g` by an older setup: the commands in /usr/local/bin
+        // link here, and they are plain JavaScript that runs the same under Debian's Node.
+        "usr/local/lib/node_modules" to emptySet(),
     )
 
     /** Free space the migration needs: the unpacked image plus room to work. */

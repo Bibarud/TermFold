@@ -58,7 +58,8 @@ const SELECTOR = { type: 'string', description: 'CSS selector, used when no ref 
 
 const TOOLS = [
   { name: 'browser_open', action: 'open', description: 'Open a page in the TermFold browser the user can see: a URL, a local port like 5173 (localhost), or a project file path like ./index.html or /root/projects/app/index.html. Waits for it to load.', props: { url: { type: 'string', description: 'URL, port or file path.' } }, required: ['url'] },
-  { name: 'browser_snapshot', action: 'snapshot', description: 'Read the current page: title, URL, headings and a numbered list of every button, link, field, checkbox and dropdown with its label and value. Use the numbers with the other tools. Run it again after the page changes.', props: {} },
+  { name: 'browser_snapshot', action: 'snapshot', description: 'Read the page: a short numbered list of the buttons, links and fields on screen. Use the numbers with the other tools. Use find to look for a control anywhere on the page, changed to see only what differs since the last snapshot, scope to read one part, all for everything. The full list is saved to /tmp/termfold-browser/snapshot.txt.', props: { find: { type: 'string', description: 'Only controls whose label, value or link contains this.' }, scope: { type: 'string', description: 'Element number or CSS selector: read only inside it.' }, changed: { type: 'boolean', description: 'Only what differs from the last snapshot.' }, all: { type: 'boolean', description: 'Include off-screen controls.' }, links: { type: 'boolean', description: 'Show link addresses.' } } },
+  { name: 'browser_outline', action: 'outline', description: 'List only the headings of the page: its shape for very few tokens.', props: {} },
   { name: 'browser_click', action: 'click', description: 'Tap an element with a real touch (it is scrolled into view first). Give ref, or text, or selector, or x/y in CSS pixels.', props: { ref: REF, text: TEXT_TARGET, selector: SELECTOR, x: { type: 'number' }, y: { type: 'number' } } },
   { name: 'browser_fill', action: 'fill', description: 'Replace the contents of a text field (input, textarea or editable element) with text. Set submit to press Enter afterwards. If it is a password on a real website, warn the user it passed through you and recommend changing it after use.', props: { ref: REF, selector: SELECTOR, text: { type: 'string', description: 'What to type.' }, submit: { type: 'boolean' } }, required: ['text'] },
   { name: 'browser_type', action: 'type', description: 'Type text with real key presses into whatever is focused (after a click).', props: { text: { type: 'string' } }, required: ['text'] },
@@ -68,8 +69,8 @@ const TOOLS = [
   { name: 'browser_hover', action: 'hover', description: 'Move the pointer over an element to show hover menus or tooltips.', props: { ref: REF, text: TEXT_TARGET, selector: SELECTOR } },
   { name: 'browser_scroll', action: 'scroll', description: 'Scroll the page with a real swipe: direction up/down (amount in screens, default 0.8) or top/bottom; or give ref/text/selector to bring an element into view.', props: { direction: { type: 'string', enum: ['up', 'down', 'top', 'bottom'] }, amount: { type: 'number' }, ref: REF, text: TEXT_TARGET, selector: SELECTOR } },
   { name: 'browser_wait', action: 'wait', description: 'Wait until some text or a CSS selector appears on the page (or the page finishes loading).', props: { text: { type: 'string' }, selector: SELECTOR, timeout: { type: 'number', description: 'Seconds, default 10.' } } },
-  { name: 'browser_screenshot', action: 'screenshot', description: 'Take a screenshot of what the browser shows and look at it. It is not kept; set save only when the user wants it kept in the project (screenshots/).', props: { save: { type: 'boolean' } }, image: true },
-  { name: 'browser_text', action: 'text', description: 'Get all readable text on the page.', props: {} },
+  { name: 'browser_screenshot', action: 'screenshot', description: 'Screenshot of what the browser shows (or of one element: give ref, text or selector). Not kept; set save only when the user wants it kept in the project. Set if_changed to skip it when the page looks the same as the last one.', props: { ref: REF, text: TEXT_TARGET, selector: SELECTOR, save: { type: 'boolean' }, if_changed: { type: 'boolean' } }, image: true },
+  { name: 'browser_text', action: 'text', description: 'Readable text of the page, or of one part with selector. Cut at max characters (default 8000).', props: { selector: SELECTOR, max: { type: 'number' } } },
   { name: 'browser_console', action: 'console', description: 'Read the page console: errors, warnings and console.log output since the page loaded.', props: { errors_only: { type: 'boolean' } } },
   { name: 'browser_network', action: 'network', description: 'List the requests the page made, with failures (HTTP 404/500, network errors) marked.', props: { failed_only: { type: 'boolean' } } },
   { name: 'browser_eval', action: 'eval', description: 'Run JavaScript in the page and return the result (JSON). For reading state, localStorage, computed styles...', props: { script: { type: 'string' } }, required: ['script'] },
@@ -152,7 +153,11 @@ function mcp() {
 const HELP = `termfold-browser: use TermFold's browser (the preview the user sees).
 
   open <url|port|file>          open a page (5173, localhost:3000, ./index.html, https://...)
-  snapshot                      numbered list of buttons, links and fields on the page
+  snapshot [--find <text>] [--scope <ref|css>] [--changed] [--all] [--links]
+                                numbered buttons, links and fields on screen (short); the full list is
+                                saved to /tmp/termfold-browser/snapshot.txt to grep. --changed shows only
+                                what differs from the last snapshot
+  outline                       just the page's headings
   click <ref|"text">            tap an element (number from snapshot, or its visible text)
   fill <ref> <text> [--submit]  replace a field's contents (and press Enter)
   type <text>                   type into the focused element
@@ -162,9 +167,12 @@ const HELP = `termfold-browser: use TermFold's browser (the preview the user see
   hover <ref>                   move the pointer over an element
   scroll <up|down|top|bottom|ref> [amount]
   wait <text> [seconds]         wait for text to appear (--selector <css> for a selector)
-  screenshot [--save]           screenshot to a temporary file and print its path (open it to look);
-                                --save keeps it in the project's screenshots/ folder instead
-  text                          all readable text on the page
+  screenshot [ref|"text"] [--if-changed] [--save]
+                                screenshot (of one element if given) to a temporary file; prints its path
+                                (open it to look). --if-changed skips it when nothing changed;
+                                --save keeps a full-quality copy in the project's screenshots/ folder
+  text [--selector <css>] [--max <chars>]
+                                readable text of the page or one part (default 8000 characters)
   console [--errors]            console messages and errors
   network [--failed]            requests the page made, failures marked
   eval <javascript>             run JavaScript in the page, print the result
@@ -190,7 +198,21 @@ async function cli(argv) {
     case 'mcp':
       mcp(); return null;
     case 'open': args = { url: resolveUrl(rest.join(' ')) }; break;
-    case 'snapshot': case 'text': case 'back': case 'forward': case 'reload': case 'status': break;
+    case 'back': case 'forward': case 'reload': case 'status': case 'outline': break;
+    case 'snapshot': {
+      const find = option('--find'); const scope = option('--scope');
+      args = { all: flag('--all'), links: flag('--links'), changed: flag('--changed') };
+      if (find) args.find = find;
+      if (scope) args.scope = scope;
+      break;
+    }
+    case 'text': {
+      const selector = option('--selector'); const max = option('--max');
+      args = {};
+      if (selector) args.selector = selector;
+      if (max) args.max = parseInt(max, 10);
+      break;
+    }
     case 'click': case 'hover': args = target(rest.join(' ') || undefined); break;
     case 'fill': { const submit = flag('--submit'); args = Object.assign(target(rest[0]), { text: rest.slice(1).join(' '), submit }); if (args.text === undefined) args.text = ''; if (!('ref' in args)) { args = { selector: rest[0], text: rest.slice(1).join(' '), submit }; } break; }
     case 'type': args = { text: rest.join(' ') }; break;
@@ -204,7 +226,7 @@ async function cli(argv) {
       break;
     }
     case 'wait': { const sel = option('--selector'); args = sel ? { selector: sel } : {}; if (rest[0]) args.text = rest[0]; if (rest[1]) args.timeout = parseFloat(rest[1]); break; }
-    case 'screenshot': args = { save: flag('--save') }; break;
+    case 'screenshot': { const save = flag('--save'); const ifChanged = flag('--if-changed'); args = Object.assign(target(rest.join(' ') || undefined), { save, if_changed: ifChanged }); break; }
     case 'console': args = { errors_only: flag('--errors') }; break;
     case 'network': args = { failed_only: flag('--failed') }; break;
     case 'eval': args = { script: rest.join(' ') }; break;

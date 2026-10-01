@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.termfold.app.R
 import com.termfold.app.ui.theme.Palette
 import com.termfold.app.ui.theme.TermFoldIcons
+import com.termfold.app.ui.theme.Motion
 
 /** Bottom navigation destinations. */
 enum class NavTab(val icon: ImageVector, val inactiveIcon: ImageVector, val labelRes: Int) {
@@ -60,7 +63,7 @@ fun BottomNav(
                 val active = tab == selected
                 val tint by animateColorAsState(
                     targetValue = if (active) Palette.Text else Palette.TextFaint,
-                    animationSpec = tween(180),
+                    animationSpec = Motion.quick(),
                     label = "navTint",
                 )
                 Column(
@@ -74,12 +77,7 @@ fun BottomNav(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    Icon(
-                        imageVector = if (active) tab.icon else tab.inactiveIcon,
-                        contentDescription = null,
-                        tint = tint,
-                        modifier = Modifier.size(22.dp),
-                    )
+                    NavTabIcon(tab, active, tint)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = stringResource(tab.labelRes),
@@ -89,6 +87,29 @@ fun BottomNav(
                     )
                 }
             }
+        }
+    }
+}
+
+/** A tab icon, with a small dot on Settings while an update is waiting. */
+@Composable
+internal fun NavTabIcon(tab: NavTab, active: Boolean, tint: androidx.compose.ui.graphics.Color) {
+    val update by com.termfold.app.update.UpdateManager.hasUpdate.collectAsState()
+    Box {
+        Icon(
+            imageVector = if (active) tab.icon else tab.inactiveIcon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(22.dp),
+        )
+        if (tab == NavTab.SETTINGS && update) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(9.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(Palette.Accent),
+            )
         }
     }
 }

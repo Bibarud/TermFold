@@ -106,6 +106,11 @@ object ProotCommand {
             "-b", ShellPaths.hostsFile(context).absolutePath + ":/etc/hosts",
         )
 
+        // Stand-ins for the /proc files Android hides from apps. Programs that work out when a
+        // process started (the native Codex CLI records its background server that way) read the
+        // boot time from /proc/stat; others need /proc/version, /proc/uptime or the watch limit.
+        fakeProcFiles(context).forEach { (fake, path) -> command += listOf("-b", "${fake.absolutePath}:$path") }
+
         // Android refuses hard links in app storage, which Debian's tools need. They are now
         // handled by the compatibility library preloaded into every guest program (GuestCompat):
         // a refused link becomes a real copy. PRoot's own emulation (--link2symlink) is only
@@ -140,6 +145,64 @@ object ProotCommand {
         }
         command += argv
         return command
+    }
+
+    /** Which of the files below this device lets an app read, worked out once. */
+    private val hiddenProc: List<String> by lazy {
+        FAKE_PROC.filter { path -> runCatching { File(path).readBytes() }.isFailure }
+    }
+
+    private val FAKE_PROC = listOf(
+        "/proc/version",
+        "/proc/loadavg",
+        "/proc/stat",
+        "/proc/uptime",
+        "/proc/vmstat",
+        "/proc/sys/kernel/cap_last_cap",
+        "/proc/sys/fs/inotify/max_user_watches",
+    )
+
+    /**
+     * Plausible contents for the /proc files this device hides, written to the scratch folder,
+     * paired with the guest path each one stands in for. Only hidden files are replaced; the
+     * uptime is refreshed on every start.
+     *
+     * The boot time in /proc/stat is kept steady between sessions: a process's start time is that
+     * boot time plus a per-process offset, and a program that stored it earlier compares it with
+     * what it reads later, so a second of drift would make it treat its own process as gone.
+     */
+    private fun fakeProcFiles(context: Context): List<Pair<File, String>> {
+        if (hiddenProc.isEmpty()) return emptyList()
+        val dir = File(ShellPaths.tempDir(context), "proc").apply { mkdirs() }
+        val cpus = Runtime.getRuntime().availableProcessors()
+        val uptime = android.os.SystemClock.elapsedRealtime() / 1000.0
+        return hiddenProc.mapNotNull { path ->
+            val file = File(dir, path.removePrefix("/proc/").replace('/', '_'))
+            val content = when (path) {
+                "/proc/version" -> "Linux version ${System.getProperty("os.version")} (termfold@android) (gcc) #1 SMP PREEMPT\n"
+                "/proc/loadavg" -> "0.40 0.35 0.30 1/400 1000\n"
+                "/proc/stat" -> buildString {
+                    append("cpu  1000 0 1000 100000 100 0 10 0 0 0\n")
+                    for (i in 0 until cpus) append("cpu$i 100 0 100 10000 10 0 1 0 0 0\n")
+                    val boot = System.currentTimeMillis() / 1000 - uptime.toLong()
+                    val earlier = runCatching {
+                        file.readLines().firstOrNull { it.startsWith("btime ") }?.removePrefix("btime ")?.trim()?.toLong()
+                    }.getOrNull()
+                    // Same boot (within a couple of seconds of rounding): keep the stored value.
+                    append("intr 0\nctxt 0\nbtime ${if (earlier != null && kotlin.math.abs(earlier - boot) <= 2) earlier else boot}\n")
+                    append("processes 1000\nprocs_running 1\nprocs_blocked 0\nsoftirq 0\n")
+                }
+                "/proc/uptime" -> "%.2f %.2f\n".format(java.util.Locale.ROOT, uptime, uptime * cpus * 0.8)
+                "/proc/vmstat" -> "nr_free_pages 100000\nnr_inactive_anon 10000\nnr_active_anon 10000\npgpgin 0\npgpgout 0\npswpin 0\npswpout 0\npgfault 0\npgmajfault 0\n"
+                "/proc/sys/kernel/cap_last_cap" -> "40\n"
+                "/proc/sys/fs/inotify/max_user_watches" -> "524288\n"
+                else -> return@mapNotNull null
+            }
+            runCatching {
+                if (!file.isFile || file.readText() != content) file.writeText(content)
+            }.getOrNull() ?: return@mapNotNull null
+            file to path
+        }
     }
 
     /** The argv for running a one-shot command in the guest, used for maintenance actions. */

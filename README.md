@@ -41,6 +41,12 @@ app, proot scripts and broken package installs. TermFold is one app that does it
 
 - **A full Debian 13 environment inside the app.** `apt install` anything. Python, Node 22,
   git, build tools, SSH and SCP work out of the box after a one-time setup.
+- **Updates from inside the app.** Settings > Updates checks GitHub for a newer release, downloads
+  it, verifies its SHA-256 and signature, and hands it to Android's installer. A dot on the Settings
+  tab shows when one is waiting.
+- **A browser agents can afford to use.** Snapshots show only what is on screen (about 25x fewer
+  tokens on a long page than listing everything), `--changed` shows only what differs, the full list
+  is saved to a file to `grep`, and screenshots are small JPEGs that can be skipped when nothing changed.
 - **Real Linux projects.** Projects live in Debian's own storage (`~/projects`), so symlinks,
   permissions, executables, git, npm and virtualenvs behave exactly as on a PC. Start one empty,
   clone it from Git, or import a folder from the device.

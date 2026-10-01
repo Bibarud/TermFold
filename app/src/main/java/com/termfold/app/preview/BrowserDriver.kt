@@ -63,8 +63,9 @@ class BrowserDriver(
             "forward" -> history { if (web.canGoForward()) web.goForward() else return@history "There is no later page."; null }
             "reload" -> history { web.reload(); null }
             "status" -> ok(pageLine())
-            "snapshot" -> snapshot()
-            "text" -> text()
+            "snapshot" -> snapshot(args)
+            "text" -> text(args)
+            "outline" -> outline()
             "click" -> click(args)
             "fill" -> fill(args)
             "type" -> type(args)
@@ -112,42 +113,123 @@ class BrowserDriver(
 
     // ---- Reading -----------------------------------------------------------------------------
 
-    private suspend fun snapshot(): JSONObject {
-        val data = call("snapshot()") ?: return err("The page could not be read.")
-        val sb = StringBuilder()
-        sb.append("Page: ").append(data.optString("title").ifBlank { "(untitled)" }).append('\n')
-        sb.append("URL: ").append(data.optString("url")).append('\n')
-        sb.append("Viewport: ").append(ui.viewportName())
-            .append(" · scrolled ").append(data.optInt("scrollY")).append(" of ").append(data.optInt("scrollHeight"))
-            .append(" (view ").append(data.optInt("viewHeight")).append(")\n")
-        val heads = data.optJSONArray("headings") ?: JSONArray()
-        if (heads.length() > 0) {
-            sb.append("Headings:\n")
-            for (i in 0 until heads.length()) sb.append("  ").append(heads.getString(i)).append('\n')
+    /** The visible elements of the last snapshot, to show only what changed on request. */
+    private var lastSnapshot: Pair<String, List<String>>? = null
+
+    private var lastShotHash = 0L
+    private var lastShotPath: String? = null
+
+    /**
+     * Reads the page as a numbered list of controls, kept short on purpose: only what is on
+     * screen, capped, without link addresses. The complete list (every element, with its
+     * address) is written to a file for the agent to search instead of reading it all again.
+     */
+    private suspend fun snapshot(args: JSONObject): JSONObject {
+        val scope = args.optString("scope").trim()
+        val options = JSONObject()
+        if (scope.isNotEmpty()) {
+            options.put("scope", if (scope.all(Char::isDigit)) JSONObject().put("ref", scope.toInt()) else JSONObject().put("selector", scope))
         }
+        val data = call("snapshot($options)") ?: return err("The page could not be read.")
+        if (data.has("error")) return err("Nothing on the page matches scope \"$scope\".")
         val items = data.optJSONArray("items") ?: JSONArray()
-        sb.append("Elements (use the number in [ ] with click, fill, select, check, hover, scroll; ↓ means off screen):\n")
-        for (i in 0 until items.length()) {
-            val it = items.getJSONObject(i)
-            sb.append('[').append(it.optInt("ref")).append("] ").append(it.optString("role"))
-            val name = it.optString("name")
+        val find = args.optString("find").trim().lowercase()
+        val all = args.optBoolean("all", false)
+        val links = args.optBoolean("links", false)
+        val changed = args.optBoolean("changed", false)
+
+        fun line(o: JSONObject, withHref: Boolean, marker: Boolean): String {
+            val sb = StringBuilder()
+            sb.append('[').append(o.optInt("ref")).append("] ").append(o.optString("role"))
+            val name = o.optString("name").take(80)
             if (name.isNotEmpty()) sb.append(" \"").append(name).append('"')
-            if (it.has("value")) sb.append(" = \"").append(it.optString("value")).append('"')
-            if (it.has("checked")) sb.append(if (it.optBoolean("checked")) " (checked)" else " (unchecked)")
-            if (it.optBoolean("disabled")) sb.append(" (disabled)")
-            if (it.has("href")) sb.append(" → ").append(it.optString("href").take(80))
-            if (!it.optBoolean("visible")) sb.append(" ↓")
+            if (o.has("value")) sb.append(" = \"").append(o.optString("value").take(60)).append('"')
+            if (o.has("checked")) sb.append(if (o.optBoolean("checked")) " (checked)" else " (unchecked)")
+            if (o.optBoolean("disabled")) sb.append(" (disabled)")
+            if (withHref && o.has("href")) sb.append(" → ").append(o.optString("href").take(120))
+            if (marker && !o.optBoolean("visible")) sb.append(" ↓")
+            return sb.toString()
+        }
+
+        val objects = (0 until items.length()).map { items.getJSONObject(it) }
+        val header = StringBuilder()
+        header.append("Page: ").append(data.optString("title").ifBlank { "(untitled)" }).append('\n')
+        header.append("URL: ").append(data.optString("url")).append('\n')
+        header.append("Scrolled ").append(data.optInt("scrollY")).append(" of ").append(data.optInt("scrollHeight"))
+            .append(" (view ").append(data.optInt("viewHeight")).append(")\n")
+
+        // The complete list goes to a file; the answer below is the short version of it.
+        val full = StringBuilder(header).append("Elements:\n")
+        objects.forEach { full.append(line(it, withHref = true, marker = true)).append('\n') }
+        val path = runCatching {
+            val dir = File(ShellPaths.rootfsDir(context), SNAPSHOT_DIR.trimStart('/')).apply { mkdirs() }
+            File(dir, "snapshot.txt").writeText(full.toString())
+            "$SNAPSHOT_DIR/snapshot.txt"
+        }.getOrNull()
+
+        val visible = objects.filter { it.optBoolean("visible") }
+        val visibleLines = visible.map { line(it, withHref = false, marker = false) }
+        val previous = lastSnapshot?.takeIf { it.first == data.optString("url") }?.second
+        lastSnapshot = data.optString("url") to visibleLines
+
+        val sb = StringBuilder(header)
+        var hidden = 0
+        if (changed && previous != null) {
+            val added = visibleLines.filter { it !in previous.toSet() }
+            val removed = previous.filter { it !in visibleLines.toSet() }
+            if (added.isEmpty() && removed.isEmpty()) {
+                sb.append("No change in the ${visibleLines.size} elements on screen.\n")
+            } else {
+                sb.append("Changed since the last snapshot (").append(visibleLines.size).append(" on screen):\n")
+                added.take(40).forEach { sb.append("+ ").append(it).append('\n') }
+                removed.take(40).forEach { sb.append("- ").append(it).append('\n') }
+            }
+        } else {
+            val shown: List<JSONObject> = when {
+                find.isNotEmpty() -> objects.filter {
+                    (it.optString("name") + " " + it.optString("role") + " " + it.optString("value") + " " + it.optString("href"))
+                        .lowercase().contains(find)
+                }.also { hidden = (it.size - 40).coerceAtLeast(0) }.take(40)
+                all -> objects
+                else -> visible.take(SNAPSHOT_LIMIT).also { hidden = objects.size - it.size }
+            }
+            if (find.isEmpty() && scope.isEmpty() && !all) {
+                val heads = data.optJSONArray("headings") ?: JSONArray()
+                if (heads.length() > 0) {
+                    sb.append("Headings: ").append((0 until minOf(heads.length(), 6)).joinToString(" | ") { heads.getString(it).take(60) }).append('\n')
+                }
+            }
+            if (find.isNotEmpty()) sb.append("Elements matching \"").append(find).append("\":\n")
+            else sb.append("Elements (use the number with click, fill, select, check, hover, scroll):\n")
+            shown.forEach { sb.append(line(it, withHref = links || find.isNotEmpty(), marker = all || find.isNotEmpty())).append('\n') }
+            if (shown.isEmpty()) sb.append(if (find.isNotEmpty()) "  (nothing matches)\n" else "  (no buttons, links or fields)\n")
+        }
+        if (hidden > 0) {
+            sb.append("+ $hidden more (off screen or over the limit): ask for all, find \"text\", scope a part of the page")
+            if (path != null) sb.append(", or search the full list: grep -i word $path")
             sb.append('\n')
         }
-        if (items.length() == 0) sb.append("  (no buttons, links or fields)\n")
         val errors = ui.consoleErrorsSince(0)
         if (errors > 0) sb.append("Console: $errors error(s). Run console to read them.\n")
         return ok(sb.toString().trimEnd())
     }
 
-    private suspend fun text(): JSONObject {
-        val data = call("text()") ?: return err("The page could not be read.")
+    private suspend fun text(args: JSONObject): JSONObject {
+        val options = JSONObject().put("max", args.optInt("max", 8000).coerceIn(500, 30000))
+        args.optString("selector").trim().takeIf { it.isNotEmpty() }?.let { options.put("selector", it) }
+        val data = call("text($options)") ?: return err("The page could not be read.")
+        if (data.has("error")) return err("Nothing on the page matches that selector.")
         return ok("Page: ${data.optString("title")}\nURL: ${data.optString("url")}\n\n${data.optString("text")}")
+    }
+
+    /** Just the headings: the shape of a long page for a few tokens. */
+    private suspend fun outline(): JSONObject {
+        val data = call("outline()") ?: return err("The page could not be read.")
+        val heads = data.optJSONArray("headings") ?: JSONArray()
+        val sb = StringBuilder("Page: ").append(data.optString("title")).append("\nURL: ").append(data.optString("url")).append('\n')
+        for (i in 0 until heads.length()) sb.append(heads.getString(i)).append('\n')
+        if (heads.length() == 0) sb.append("(no headings)\n")
+        return ok(sb.toString().trimEnd())
     }
 
     // ---- Acting ------------------------------------------------------------------------------
@@ -345,6 +427,14 @@ class BrowserDriver(
         if (web.width == 0 || web.height == 0) return err("The browser is not on screen.")
         // A capture taken while the page is still drawing (right after a scroll, say) can come
         // out as one flat colour; give it a moment and take it again.
+        // A picture of one element: bring it into view and remember where it is.
+        val aim = JSONObject().also { t -> listOf("ref", "selector", "text").forEach { k -> if (args.has(k)) t.put(k, args.get(k)) } }
+        var region: JSONObject? = null
+        if (aim.length() > 0) {
+            region = call("box($aim)")
+            if (region == null || region.has("error")) return err("Could not find that element to take a picture of it.")
+            delay(150)
+        }
         var bitmap = Bitmap.createBitmap(web.width, web.height, Bitmap.Config.ARGB_8888)
         web.draw(Canvas(bitmap))
         var tries = 0
@@ -353,6 +443,18 @@ class BrowserDriver(
             delay(250L * tries)
             bitmap.eraseColor(0)
             web.draw(Canvas(bitmap))
+        }
+        if (region != null) {
+            val scale = bitmap.width / region.optDouble("vw", bitmap.width.toDouble()).coerceAtLeast(1.0)
+            val x = (region.optDouble("x") * scale).toInt().coerceIn(0, bitmap.width - 8)
+            val y = (region.optDouble("y") * scale).toInt().coerceIn(0, bitmap.height - 8)
+            val w = (region.optDouble("w") * scale).toInt().coerceAtMost(bitmap.width - x)
+            val h = (region.optDouble("h") * scale).toInt().coerceAtMost(bitmap.height - y)
+            if (w >= 8 && h >= 8) {
+                val cropped = Bitmap.createBitmap(bitmap, x, y, w, h)
+                bitmap.recycle()
+                bitmap = cropped
+            }
         }
         val blank = isBlank(bitmap)
         val result = JSONObject()
@@ -363,20 +465,43 @@ class BrowserDriver(
             // Kept in the project only when asked; otherwise a temporary file the agent can open,
             // since checking work can mean dozens of screenshots.
             val keep = args.optBoolean("save", false)
+            // Asked to skip a picture that would look the same as the last one.
+            val hash = pictureHash(bitmap)
+            if (args.optBoolean("if_changed", false) && !keep && !blank && hash == lastShotHash) {
+                bitmap.recycle()
+                return@withContext result.put(
+                    "text",
+                    "Unchanged since the last screenshot" + (lastShotPath?.let { " ($it)" } ?: "") + ".",
+                )
+            }
+            lastShotHash = hash
+            lastShotPath = null
             if (keep || !args.optBoolean("image", false)) {
                 val rootfs = ShellPaths.rootfsDir(context)
                 val guestDir = if (keep) workDir(args) + "/screenshots" else TEMP_SHOTS
                 val dir = File(rootfs, guestDir.trimStart('/')).apply { mkdirs() }
                 val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmmss-SSS", java.util.Locale.US).format(java.util.Date())
-                val file = File(dir, "browser-$stamp.png")
-                file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                // Kept screenshots stay full-quality PNG; the throwaway ones the agent opens to look
+                // are a smaller JPEG, because the picture is read in tokens by its size.
+                val file = File(dir, "browser-$stamp." + if (keep) "png" else "jpg")
+                file.outputStream().use { out ->
+                    if (keep) {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                    } else {
+                        val s = (1280f / maxOf(bitmap.width, bitmap.height)).coerceAtMost(1f)
+                        val small = if (s < 1f) Bitmap.createScaledBitmap(bitmap, (bitmap.width * s).toInt().coerceAtLeast(1), (bitmap.height * s).toInt().coerceAtLeast(1), true) else bitmap
+                        small.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                        if (small !== bitmap) small.recycle()
+                    }
+                }
                 if (!keep) pruneTemporary(dir)
                 val guest = "$guestDir/${file.name}"
                 result.put("path", guest)
+                if (!keep) lastShotPath = guest
                 summary.append(if (keep) " saved to " else " (temporary) at ").append(guest)
             }
             if (args.optBoolean("image", false)) {
-                val scale = (1024f / bitmap.width).coerceAtMost(1f)
+                val scale = (1024f / maxOf(bitmap.width, bitmap.height)).coerceAtMost(1f)
                 val small = if (scale < 1f) Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true) else bitmap
                 val bytes = ByteArrayOutputStream().also { small.compress(Bitmap.CompressFormat.JPEG, 82, it) }.toByteArray()
                 if (small !== bitmap) small.recycle()
@@ -571,6 +696,15 @@ class BrowserDriver(
      * True when a capture is one colour all over. It is shrunk with filtering first, so even thin
      * text anywhere on a plain page shows up as a slightly different pixel.
      */
+    /** A fingerprint of the picture, coarse enough to be cheap and fine enough to notice changed text. */
+    private fun pictureHash(bitmap: Bitmap): Long {
+        val small = Bitmap.createScaledBitmap(bitmap, 96, 96, true)
+        var h = 1125899906842597L
+        for (y in 0 until 96) for (x in 0 until 96) h = 31 * h + small.getPixel(x, y)
+        small.recycle()
+        return h
+    }
+
     private fun isBlank(bitmap: Bitmap): Boolean {
         val small = Bitmap.createScaledBitmap(bitmap, 96, 96, true)
         val pixels = IntArray(96 * 96)
@@ -589,6 +723,8 @@ class BrowserDriver(
 
     private companion object {
         const val TEMP_SHOTS = "/tmp/termfold-screenshots"
+        const val SNAPSHOT_DIR = "/tmp/termfold-browser"
+        const val SNAPSHOT_LIMIT = 60
         const val KEEP_TEMP_SHOTS = 100
 
         /** Installed once per page; finds, describes and numbers what a person could interact with. */
@@ -614,7 +750,7 @@ if(el.isContentEditable)return 'textbox';return 'clickable';}
 var SEL='a[href],button,input:not([type=hidden]),textarea,select,summary,[role=button],[role=link],[role=checkbox],[role=radio],[role=tab],[role=menuitem],[role=switch],[role=option],[role=combobox],[role=textbox],[role=slider],[contenteditable=""],[contenteditable=true],[onclick],[tabindex]:not([tabindex="-1"])';
 function ref(el){if(!el.dataset.tfRef){while(document.querySelector('[data-tf-ref="'+next+'"]'))next++;el.dataset.tfRef=String(next++);}return +el.dataset.tfRef;}
 function describe(el){return {ref:ref(el),role:role(el),name:name(el)};}
-function snapshot(){var out=[];var els=document.querySelectorAll(SEL);
+function snapshot(o){o=o||{};var root=document;if(o.scope){root=find(o.scope);if(!root)return {error:'scope not found'};}var out=[];var els=root.querySelectorAll(SEL);
 for(var i=0;i<els.length&&out.length<400;i++){var el=els[i];if(!visible(el)||el.closest('[aria-hidden=true]'))continue;
 var r=el.getBoundingClientRect();var it=describe(el);
 if(el.tagName==='SELECT'){var o=el.options[el.selectedIndex];it.value=o?clean(o.text):'';}
@@ -661,11 +797,13 @@ var d=describe(el);d.value=clean(hit.text);return d;}
 function state(a){var el=find(a);if(!el)return {error:'not found'};var d=describe(el);d.checked=(el.type==='checkbox'||el.type==='radio')?!!el.checked:el.getAttribute('aria-checked')==='true';return d;}
 function hover(a){var el=find(a);if(!el)return {error:'not found'};['pointerover','pointerenter','mouseover','mouseenter','mousemove'].forEach(function(t){el.dispatchEvent(new MouseEvent(t,{bubbles:t.indexOf('enter')<0}));});return describe(el);}
 function pos(){var se=document.scrollingElement||document.documentElement;return {scrollY:Math.round(se.scrollTop),scrollHeight:se.scrollHeight,viewHeight:innerHeight};}
-function text(){var t=document.body?document.body.innerText:'';return {title:document.title,url:location.href,text:t.length>30000?t.slice(0,30000)+'\n...(truncated)':t};}
+function text(o){o=o||{};var root=o.selector?document.querySelector(o.selector):document.body;if(!root)return {error:'not found'};var t=root.innerText||'';var max=o.max||8000;return {title:document.title,url:location.href,text:t.length>max?t.slice(0,max)+'\n...(cut at '+max+' of '+t.length+' characters; pass a selector or a larger max)':t};}
+function outline(){var heads=[];document.querySelectorAll('h1,h2,h3,h4').forEach(function(h){if(heads.length<60&&visible(h)){var l=+h.tagName.charAt(1);heads.push('  '.repeat(l-1)+h.tagName.toLowerCase()+': '+clean(h.innerText).slice(0,90));}});return {title:document.title,url:location.href,headings:heads};}
+function box(a){var el=find(a);if(!el)return {error:'not found'};el.scrollIntoView({block:'center',inline:'center',behavior:'instant'});var r=el.getBoundingClientRect();return {x:r.left,y:r.top,w:r.width,h:r.height,vw:vv().width};}
 function has(a){if(a.selector){try{var e=document.querySelector(a.selector);return {found:!!e&&visible(e)};}catch(x){return {found:false};}}
 if(a.text)return {found:!!document.body&&document.body.innerText.toLowerCase().indexOf(String(a.text).toLowerCase())>=0};
 return {found:document.readyState==='complete'};}
-return {snapshot:snapshot,point:point,viewport:viewport,fill:fill,select:select,state:state,hover:hover,pos:pos,text:text,has:has};
+return {snapshot:snapshot,point:point,viewport:viewport,fill:fill,select:select,state:state,hover:hover,pos:pos,text:text,has:has,outline:outline,box:box};
 })()
 """.trimIndent()
     }
