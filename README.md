@@ -12,6 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/Bibarud/TermFold/releases/latest"><img alt="Download APK" src="https://img.shields.io/github/v/release/Bibarud/TermFold?label=Download%20APK&color=ff7a2e"></a>
+  <a href="https://bibarud.github.io/TermFold/"><img alt="Website" src="https://img.shields.io/badge/website-bibarud.github.io%2FTermFold-ff7a2e"></a>
   <img alt="Android 8+" src="https://img.shields.io/badge/Android-8.0%2B-3ddc84">
   <img alt="arm64 and x86_64" src="https://img.shields.io/badge/ABI-arm64%20%7C%20x86__64-555">
   <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue"></a>

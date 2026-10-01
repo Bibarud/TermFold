@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TermFold: a real Linux terminal and AI coding agents on Android</title>
+<meta name="description" content="TermFold runs a full Debian Linux environment inside an Android app, with Claude Code, Codex, Gemini CLI, OpenCode, Cursor and Pi. No root, no laptop, no cloud IDE. Free and open source.">
+<link rel="canonical" href="https://bibarud.github.io/TermFold/">
+<link rel="icon" href="media/logo.png">
+<meta name="theme-color" content="#08080a">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="TermFold: a real Linux terminal and AI coding agents on Android">
+<meta property="og:description" content="A full Debian environment and AI coding agents on your Android tablet or phone. No root, no laptop. Free and open source.">
+<meta property="og:url" content="https://bibarud.github.io/TermFold/">
+<meta property="og:image" content="https://bibarud.github.io/TermFold/media/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TermFold: Linux and AI coding agents on Android">
+<meta name="twitter:description" content="A full Debian environment and AI coding agents on your Android tablet or phone. No root, no laptop.">
+<meta name="twitter:image" content="https://bibarud.github.io/TermFold/media/social-preview.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "TermFold",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Android 8.0+",
+  "description": "A full Debian Linux environment inside an Android app, with AI coding agents such as Claude Code, Codex, Gemini CLI, OpenCode, Cursor and Pi. No root required.",
+  "url": "https://bibarud.github.io/TermFold/",
+  "downloadUrl": "https://github.com/Bibarud/TermFold/releases/latest",
+  "license": "https://www.apache.org/licenses/LICENSE-2.0",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #08080a;
+    --bg-soft: #0e0e11;
+    --card: #131316;
+    --card-2: #19191d;
+    --border: #25252b;
+    --text: #f4f4f5;
+    --dim: #a1a1aa;
+    --faint: #6b6b75;
+    --accent: #ff7a2e;
+    --accent-2: #ffb27a;
+    --radius: 20px;
+    --maxw: 1120px;
+  }
+  @media (prefers-color-scheme: light) {
+    /* The brand is dark; keep it dark for everyone and only soften the page edge. */
+    :root { color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .wrap { width: min(var(--maxw), 100% - 40px); margin-inline: auto; }
+
+  /* ---------- Top bar ---------- */
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(8, 8, 10, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .bar { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 19px; text-decoration: none; }
+  .brand img { width: 32px; height: 32px; }
+  nav.links { display: flex; align-items: center; gap: 26px; font-size: 15px; color: var(--dim); }
+  nav.links a { text-decoration: none; transition: color .15s; }
+  nav.links a:hover { color: var(--text); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    padding: 12px 22px; border-radius: 14px; font-weight: 600; font-size: 16px;
+    text-decoration: none; border: 1px solid transparent; cursor: pointer;
+    transition: transform .15s, background .15s, border-color .15s;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: #1b0d03; }
+  .btn-primary:hover { background: #ff8a45; }
+  .btn-ghost { background: var(--card); border-color: var(--border); color: var(--text); }
+  .btn-ghost:hover { background: var(--card-2); border-color: #34343c; }
+  .btn small { font-weight: 500; opacity: .75; }
+
+  /* ---------- Hero ---------- */
+  .hero { position: relative; padding: 84px 0 56px; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -20% -10% auto -10%; height: 640px; z-index: -1;
+    background:
+      radial-gradient(520px 320px at 78% 30%, rgba(255, 122, 46, 0.22), transparent 70%),
+      radial-gradient(420px 280px at 12% 10%, rgba(120, 90, 255, 0.14), transparent 70%);
+  }
+  .hero-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px;
+    background: rgba(255, 122, 46, 0.1); border: 1px solid rgba(255, 122, 46, 0.25);
+    color: var(--accent-2); font-size: 14px; font-weight: 500; margin-bottom: 22px;
+  }
+  h1 { font-size: clamp(38px, 5.4vw, 62px); line-height: 1.04; letter-spacing: -0.02em; margin: 0 0 22px; font-weight: 700; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead { font-size: clamp(18px, 2vw, 21px); color: var(--dim); max-width: 34em; margin: 0 0 32px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+  .fine { font-size: 14px; color: var(--faint); }
+  .fine a { color: var(--dim); }
+  .shot {
+    border-radius: 22px; border: 1px solid var(--border); background: var(--card);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .02) inset;
+    overflow: hidden;
+  }
+  .shot img, .shot video { display: block; width: 100%; height: auto; }
+
+  /* ---------- Works with ---------- */
+  .logos { padding: 30px 0 10px; text-align: center; }
+  .logos p { color: var(--faint); font-size: 14px; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 16px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .chip {
+    padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--bg-soft); color: var(--dim); font-size: 15px;
+  }
+
+  /* ---------- Sections ---------- */
+  section { padding: 76px 0; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; margin: 0 0 12px; }
+  h2 { font-size: clamp(28px, 3.6vw, 42px); line-height: 1.1; letter-spacing: -0.015em; margin: 0 0 16px; font-weight: 700; }
+  .sub { color: var(--dim); font-size: 18px; max-width: 38em; margin: 0 0 40px; }
+
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 26px; transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: #3a3a44; transform: translateY(-2px); }
+  .icon {
+    width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; margin-bottom: 18px;
+    background: rgba(255, 122, 46, 0.12); color: var(--accent); font-size: 22px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 20px; font-weight: 600; }
+  .card p { margin: 0; color: var(--dim); font-size: 16px; }
+
+  /* ---------- Split rows ---------- */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+  .split.reverse > :first-child { order: 2; }
+  .ticks { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 12px; }
+  .ticks li { position: relative; padding-left: 30px; color: var(--dim); }
+  .ticks li::before {
+    content: ""; position: absolute; left: 0; top: 7px; width: 16px; height: 16px; border-radius: 50%;
+    background: rgba(255, 122, 46, .15); box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  .ticks b { color: var(--text); font-weight: 500; }
+
+  .term {
+    background: #060608; border: 1px solid var(--border); border-radius: 18px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  }
+  .term .tb { display: flex; gap: 7px; padding: 12px 16px; background: #0d0d10; border-bottom: 1px solid var(--border); }
+  .term .tb i { width: 11px; height: 11px; border-radius: 50%; background: #2a2a31; display: block; }
+  .term pre { margin: 0; padding: 20px; font-size: 14.5px; line-height: 1.7; overflow-x: auto; color: #d8d8de; }
+  .term .p { color: var(--accent); }
+  .term .c { color: #6b6b75; }
+  .term .g { color: #6ee7a8; }
+
+  /* ---------- Steps ---------- */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; counter-reset: s; }
+  .step { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 26px; position: relative; }
+  .step::before {
+    counter-increment: s; content: counter(s);
+    display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+    background: var(--accent); color: #1b0d03; font-weight: 700; margin-bottom: 16px;
+  }
+  .step h3 { margin: 0 0 8px; font-size: 19px; }
+  .step p { margin: 0; color: var(--dim); }
+
+  /* ---------- Gallery ---------- */
+  .gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .gallery figure { margin: 0; }
+  .gallery figcaption { margin-top: 10px; color: var(--faint); font-size: 14px; text-align: center; }
+
+  /* ---------- Install ---------- */
+  .install { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .install .card { display: flex; flex-direction: column; gap: 14px; }
+  .install .card .btn { margin-top: auto; align-self: flex-start; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+         padding: 3px 10px; border-radius: 999px; background: rgba(255, 122, 46, .12); color: var(--accent-2); }
+
+  /* ---------- FAQ ---------- */
+  .faq { max-width: 820px; }
+  details { border-bottom: 1px solid var(--border); padding: 20px 0; }
+  summary { cursor: pointer; font-size: 19px; font-weight: 500; list-style: none; display: flex; justify-content: space-between; gap: 20px; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; color: var(--accent); font-size: 26px; line-height: 1; transition: transform .2s; }
+  details[open] summary::after { transform: rotate(45deg); }
+  details p { color: var(--dim); margin: 14px 0 0; max-width: 46em; }
+
+  /* ---------- Final CTA / footer ---------- */
+  .final {
+    text-align: center; padding: 70px 24px; border-radius: 28px; border: 1px solid var(--border);
+    background:
+      radial-gradient(520px 260px at 50% 0%, rgba(255, 122, 46, .2), transparent 70%),
+      var(--card);
+  }
+  .final h2 { margin-bottom: 14px; }
+  .final .cta { justify-content: center; margin-top: 28px; }
+  footer { padding: 40px 0 56px; color: var(--faint); font-size: 14px; }
+  footer .row { display: flex; flex-wrap: wrap; gap: 18px 28px; justify-content: space-between; }
+  footer a { color: var(--dim); text-decoration: none; }
+  footer a:hover { color: var(--text); }
+  footer .l { display: flex; gap: 22px; flex-wrap: wrap; }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 920px) {
+    .hero { padding-top: 48px; }
+    .hero-grid, .split { grid-template-columns: 1fr; gap: 36px; }
+    .split.reverse > :first-child { order: 0; }
+    .grid, .steps, .install { grid-template-columns: 1fr; }
+    .gallery { grid-template-columns: 1fr; }
+    nav.links a:not(.btn) { display: none; }
+    section { padding: 56px 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .card, .btn { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap bar">
+    <a class="brand" href="#top"><img src="media/logo.png" alt="" width="32" height="32"> TermFold</a>
+    <nav class="links" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#screens">Screenshots</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn btn-ghost" href="https://github.com/Bibarud/TermFold" style="padding:8px 16px;font-size:15px">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Free and open source &middot; Apache-2.0</span>
+        <h1>A real Linux terminal and <em>AI coding agents</em> on your Android tablet.</h1>
+        <p class="lead">TermFold puts a full Debian environment inside one app. Run Claude Code, Codex, Gemini CLI, OpenCode, Cursor or Pi in real projects. No root, no laptop, no cloud IDE.</p>
+        <div class="cta">
+          <a class="btn btn-primary" id="dl" href="https://github.com/Bibarud/TermFold/releases/latest">Download the APK <small id="dl-meta"></small></a>
+          <a class="btn btn-ghost" href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Bibarud/TermFold">Add to Obtainium</a>
+        </div>
+        <p class="fine">Android 8.0+ &middot; arm64 and x86_64 &middot; updates itself from Settings &middot; <a href="https://github.com/Bibarud/TermFold">source on GitHub</a></p>
+      </div>
+      <div class="shot">
+        <img src="screenshots/chat.png" alt="TermFold on a tablet: Codex answering in the native chat view" width="2944" height="1744" fetchpriority="high">
+      </div>
+    </div>
+  </div>
+
+  <!-- Works with -->
+  <div class="logos wrap">
+    <p>Runs the agents you already use</p>
+    <div class="chips">
+      <span class="chip">Claude Code</span><span class="chip">Codex</span><span class="chip">Gemini CLI</span>
+      <span class="chip">OpenCode</span><span class="chip">Cursor</span><span class="chip">Pi</span>
+      <span class="chip">Qwen Code</span><span class="chip">Devin</span><span class="chip">anything with <code>apt</code> or <code>npm</code></span>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="wrap">
+      <p class="kicker">What you get</p>
+      <h2>Everything you need to code on a tablet.</h2>
+      <p class="sub">Most Android terminals leave you juggling proot scripts and broken installs. TermFold is one app that sets it all up and keeps it working.</p>
+
+      <div class="grid">
+        <div class="card"><div class="icon">&#9638;</div><h3>A full Debian 13 system</h3><p><code>apt install</code> anything. Python, Node 22, git, build tools and SSH work out of the box after a one-time setup. Projects behave exactly like on a PC.</p></div>
+        <div class="card"><div class="icon">&#9998;</div><h3>Native agent chat</h3><p>Agents that speak the Agent Client Protocol get a real chat: Markdown, tool calls, plans, permission prompts, and a model and reasoning picker.</p></div>
+        <div class="card"><div class="icon">&#9638;</div><h3>A browser agents can use</h3><p>A preview browser beside your work. Agents open pages, click, fill forms and take screenshots, with short, token-friendly snapshots.</p></div>
+        <div class="card"><div class="icon">&#9776;</div><h3>Files and an editor</h3><p>Built-in file manager and a CodeMirror editor with 40+ languages. Upload anything, share to TermFold from any app, export anywhere.</p></div>
+        <div class="card"><div class="icon">&#9711;</div><h3>Built for tablets</h3><p>A key row for Ctrl, Esc and arrows, a side-by-side layout, and a floating bubble that keeps your session one tap away over other apps.</p></div>
+        <div class="card"><div class="icon">&#8635;</div><h3>Updates itself</h3><p>Settings &rsaquo; Updates checks GitHub, downloads the release, verifies its checksum and signature, and hands it to Android's installer.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Film -->
+  <section style="padding-top:0">
+    <div class="wrap">
+      <p class="kicker">See it in action</p>
+      <h2>Fifty seconds, with sound.</h2>
+      <div class="shot" style="margin-top:32px;max-width:900px">
+        <video controls preload="none" poster="media/poster.png" playsinline>
+          <source src="media/termfold-promo.mp4" type="video/mp4">
+          Your browser cannot play the video. <a href="media/termfold-promo.mp4">Download it</a>.
+        </video>
+      </div>
+    </div>
+  </section>
+
+  <!-- Terminal -->
+  <section style="padding-top:0">
+    <div class="wrap split">
+      <div>
+        <p class="kicker">Real Linux</p>
+        <h2>Not a simulation. The same tools you use at your desk.</h2>
+        <p class="sub" style="margin-bottom:0">TermFold unpacks a genuine Debian root filesystem and runs it with PRoot, so compilers, package managers and full-screen terminal apps behave normally.</p>
+        <ul class="ticks">
+          <li><b>No root</b> and no special setup. Install the APK and open it.</li>
+          <li><b>Your projects live in Linux</b>, so symlinks, permissions and git are correct.</li>
+          <li><b>Agents install themselves</b> the first time you type their command.</li>
+        </ul>
+      </div>
+      <div class="term" role="img" aria-label="A terminal showing Debian 13, Node, Python and git versions">
+        <div class="tb"><i></i><i></i><i></i></div>
+<pre><span class="p">~/projects/app $</span> cat /etc/os-release | head -1
+PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+<span class="p">~/projects/app $</span> node -v &amp;&amp; python3 --version &amp;&amp; git --version
+v22.23.3
+Python 3.13.5
+git version 2.47.3
+<span class="p">~/projects/app $</span> claude
+<span class="c"># Claude Code, running on your tablet</span><span class="g"> &#10003;</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section style="padding-top:0">
+    <div class="wrap">
+      <p class="kicker">How it works</p>
+      <h2>From install to first agent in a few minutes.</h2>
+      <p class="sub">The first launch downloads a few hundred MB of developer tools, once.</p>
+      <div class="steps">
+        <div class="step"><h3>Install the APK</h3><p>Download it from GitHub or add the repo to Obtainium. Open TermFold; it unpacks Debian in seconds.</p></div>
+        <div class="step"><h3>Open a project</h3><p>Start empty, clone from Git, or import a folder. Open a shell, or an agent chat.</p></div>
+        <div class="step"><h3>Run your agent</h3><p>Type <code>claude</code>, <code>codex</code>, <code>gemini</code> or <code>opencode</code>. Sign in once and it stays signed in.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screenshots -->
+  <section id="screens" style="padding-top:0">
+    <div class="wrap">
+      <p class="kicker">Screenshots</p>
+      <h2>Made for a big screen with a keyboard.</h2>
+      <div class="gallery" style="margin-top:36px">
+        <figure><div class="shot"><img src="screenshots/terminal.png" alt="The terminal on a tablet, with the key row" loading="lazy"></div><figcaption>The terminal, with a key row for Ctrl, Esc and arrows</figcaption></figure>
+        <figure><div class="shot"><img src="screenshots/chat.png" alt="Codex answering in TermFold's native chat view" loading="lazy"></div><figcaption>Native chat with any Agent Client Protocol agent</figcaption></figure>
+        <figure><div class="shot"><img src="screenshots/settings.png" alt="The model and reasoning picker" loading="lazy"></div><figcaption>Model, reasoning and mode in one tap</figcaption></figure>
+        <figure><div class="shot"><img src="screenshots/sessions.png" alt="The sessions list for a project" loading="lazy"></div><figcaption>Several sessions per project, side by side on a tablet</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install -->
+  <section id="install" style="padding-top:0">
+    <div class="wrap">
+      <p class="kicker">Install</p>
+      <h2>Three ways to get TermFold.</h2>
+      <p class="sub">It is not on Google Play: to run Linux tools from its own storage the app has to target Android 9, which Play no longer accepts. Every release is a signed APK on GitHub.</p>
+      <div class="install">
+        <div class="card">
+          <span class="tag">Simplest</span>
+          <h3>Download the APK</h3>
+          <p>Get the latest signed release from GitHub and open it. Android asks once to allow installs from your browser or files app.</p>
+          <a class="btn btn-primary" id="dl2" href="https://github.com/Bibarud/TermFold/releases/latest">Latest release</a>
+        </div>
+        <div class="card">
+          <span class="tag">Auto-updates</span>
+          <h3>Obtainium</h3>
+          <p>Add the GitHub repo to <a href="https://github.com/ImranR98/Obtainium">Obtainium</a> and it installs TermFold and keeps it up to date.</p>
+          <a class="btn btn-ghost" href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/Bibarud/TermFold">Add to Obtainium</a>
+        </div>
+        <div class="card">
+          <span class="tag">Built in</span>
+          <h3>Update from Settings</h3>
+          <p>Already on version 2.3 or later? Settings &rsaquo; Updates finds new releases, checks them, and installs them for you.</p>
+          <a class="btn btn-ghost" href="https://github.com/Bibarud/TermFold/releases">Release notes</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section id="faq" style="padding-top:0">
+    <div class="wrap">
+      <p class="kicker">Questions</p>
+      <h2>Good to know.</h2>
+      <div class="faq" style="margin-top:28px">
+        <details><summary>Do I need root?</summary><p>No. TermFold runs Debian in user space with PRoot, as an ordinary Android app. Nothing about your device is modified.</p></details>
+        <details><summary>Does it work on a phone?</summary><p>Yes, the layout adapts. It shines on a tablet with a keyboard, where the chat, files and terminal sit side by side.</p></details>
+        <details><summary>How is this different from Termux?</summary><p>Termux is a great terminal. TermFold is built around coding with AI agents: a bundled Debian that stays consistent, a native chat for agents, a browser they can drive, a file manager and an editor, with the setup done for you.</p></details>
+        <details><summary>Which agents work?</summary><p>Anything that runs on Linux and Node. Claude Code, Codex, Gemini CLI, OpenCode, Cursor, Pi and Qwen Code install on first use, and several get a native chat through the Agent Client Protocol. You bring your own account or API key for each.</p></details>
+        <details><summary>Why isn't it on Google Play or F-Droid?</summary><p>Google Play requires a newer target Android version than TermFold can use while still running Linux binaries from its own storage. F-Droid requires every binary to be built from source, and TermFold ships PRoot built by the Termux project. Releases here are signed APKs, and the app can update itself.</p></details>
+        <details><summary>Is it safe to install an APK from GitHub?</summary><p>Each release lists a SHA-256 checksum, the source is public under Apache-2.0, and the in-app updater verifies both the checksum and the signing key before handing a file to Android.</p></details>
+        <details><summary>How much space does it need?</summary><p>About 100 MB to unpack, plus the developer tools (a few hundred MB), plus whatever you install. Plan on a few GB free.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section style="padding-top:0">
+    <div class="wrap">
+      <div class="final">
+        <h2>Code from the couch, the train, or the beach.</h2>
+        <p class="sub" style="margin:0 auto">Your tablet is a real computer. Give it a real terminal.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://github.com/Bibarud/TermFold/releases/latest">Download TermFold</a>
+          <a class="btn btn-ghost" href="https://github.com/Bibarud/TermFold">Star on GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap row">
+    <div>TermFold &middot; Apache-2.0 &middot; Debian is a trademark of SPI, Inc.; TermFold is not affiliated with Debian.</div>
+    <div class="l">
+      <a href="https://github.com/Bibarud/TermFold">GitHub</a>
+      <a href="https://github.com/Bibarud/TermFold/releases">Releases</a>
+      <a href="https://github.com/Bibarud/TermFold/issues">Report an issue</a>
+      <a href="https://github.com/Bibarud/TermFold/discussions">Discussions</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Point the download buttons straight at the newest APK, and show its size. Without script
+  // (or if GitHub does not answer) they still go to the releases page.
+  (function () {
+    fetch("https://api.github.com/repos/Bibarud/TermFold/releases/latest", { headers: { Accept: "application/vnd.github+json" } })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (rel) {
+        var apk = (rel.assets || []).filter(function (a) { return /\.apk$/i.test(a.name); })[0];
+        if (!apk) return;
+        var mb = Math.round(apk.size / 1048576);
+        ["dl", "dl2"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.href = apk.browser_download_url;
+        });
+        var meta = document.getElementById("dl-meta");
+        if (meta) meta.textContent = rel.tag_name + " · " + mb + " MB";
+      })
+      .catch(function () {});
+  })();
+</script>
+</body>
+</html>
